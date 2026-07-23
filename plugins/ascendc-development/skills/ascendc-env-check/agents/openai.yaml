@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ascend C Environment Check"
+  short_description: "Inspect CANN configuration and Ascend NPU health"
+  default_prompt: "Use $ascendc-env-check to inspect the current CANN environment and available Ascend NPU devices."

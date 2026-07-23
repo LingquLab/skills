@@ -2,7 +2,7 @@
 
 ## Skill Under Test
 
-- `superpowers-neo-finishing-a-development-branch`
+- `superpowers-neo-git-delivery`
 
 ## Request A: Default Branch Still Needs a Branch Decision
 

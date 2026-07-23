@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ascend C Docs Search"
+  short_description: "Find version-matched Ascend C docs and examples"
+  default_prompt: "Use $ascendc-docs-search to locate authoritative documentation and examples for this Ascend C question."

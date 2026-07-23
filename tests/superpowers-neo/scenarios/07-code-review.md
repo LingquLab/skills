@@ -3,7 +3,7 @@
 ## Skills Under Test
 
 - `superpowers-neo-requesting-code-review`
-- `superpowers-neo-receiving-code-review`
+- `superpowers-neo-handling-code-review-feedback`
 
 ## Request
 

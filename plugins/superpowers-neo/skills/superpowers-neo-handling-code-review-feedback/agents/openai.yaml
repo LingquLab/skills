@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Review Feedback"
+  short_description: "Evaluate review feedback with technical evidence"
+  default_prompt: "Use $superpowers-neo-handling-code-review-feedback to assess this review feedback against the code and requirements."

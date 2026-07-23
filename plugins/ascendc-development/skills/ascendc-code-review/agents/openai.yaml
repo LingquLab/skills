@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ascend C Code Review"
+  short_description: "Evidence-based review for Ascend C code changes"
+  default_prompt: "Use $ascendc-code-review to review this Ascend C change and report evidence-backed findings first."

@@ -16,7 +16,7 @@ Base fixes on evidence that explains the symptom. Scale the investigation to the
 3. State a falsifiable hypothesis: "X causes the symptom because Y; if true, check Z will produce result R."
 4. Run the smallest useful check that can confirm or reject the hypothesis. Change one relevant variable when possible so the result remains attributable.
 5. Once evidence is sufficient, fix the identified cause directly and keep unrelated changes out of the attempt.
-6. Verify the original symptom and relevant regression surface. Use `superpowers-neo-testing-strategy` to choose automated tests or alternative validation.
+6. Verify the original symptom and relevant regression surface. Use `superpowers-neo-validation-strategy` to choose automated tests or alternative validation.
 
 ## After a Failed Fix
 

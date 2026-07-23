@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Validation Strategy"
+  short_description: "Choose validation in proportion to change risk"
+  default_prompt: "Use $superpowers-neo-validation-strategy to select proportionate validation for this change."

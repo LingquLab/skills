@@ -14,22 +14,35 @@ SCENARIOS_ROOT = File.join(ROOT, "tests", PLUGIN_NAME, "scenarios")
 EXPECTED_MARKETPLACE_NAME = "lingqulab"
 EXPECTED_MARKETPLACE_DISPLAY_NAME = "LingquLab Skills"
 EXPECTED_PLUGIN_SOURCE = "./plugins/superpowers-neo"
-EXPECTED_PLUGIN_VERSION = "0.1.0"
+EXPECTED_PLUGIN_VERSION = "0.2.0"
 EXPECTED_PLUGIN_CATEGORY = "Developer Tools"
+ASCENDC_PLUGIN_NAME = "ascendc-development"
+ASCENDC_PLUGIN_ROOT = File.join(PLUGINS_ROOT, ASCENDC_PLUGIN_NAME)
+ASCENDC_SKILLS_ROOT = File.join(ASCENDC_PLUGIN_ROOT, "skills")
+ASCENDC_PLUGIN_SOURCE = "./plugins/ascendc-development"
+ASCENDC_PLUGIN_VERSION = "0.1.0"
+ASCENDC_PLUGIN_LICENSE = "LicenseRef-CANN-2.0"
 ALLOWED_INSTALLATION_POLICIES = %w[NOT_AVAILABLE AVAILABLE INSTALLED_BY_DEFAULT].freeze
 ALLOWED_AUTHENTICATION_POLICIES = %w[ON_INSTALL ON_USE].freeze
 SEMVER_PATTERN = /\A(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/.freeze
 EXPECTED_SKILLS = %w[
-  superpowers-neo-brainstorming
+  superpowers-neo-designing-complex-changes
   superpowers-neo-writing-plans
   superpowers-neo-using-git-worktrees
   superpowers-neo-executing-plans
-  superpowers-neo-testing-strategy
+  superpowers-neo-validation-strategy
   superpowers-neo-systematic-debugging
   superpowers-neo-requesting-code-review
-  superpowers-neo-receiving-code-review
+  superpowers-neo-handling-code-review-feedback
   superpowers-neo-verification-before-completion
-  superpowers-neo-finishing-a-development-branch
+  superpowers-neo-git-delivery
+].freeze
+EXPECTED_ASCENDC_SKILLS = %w[
+  ascendc-api-best-practices
+  ascendc-code-review
+  ascendc-docs-search
+  ascendc-env-check
+  cann-env-setup
 ].freeze
 ALLOWED_FRONTMATTER_KEYS = %w[name description license allowed-tools metadata].freeze
 REQUIRED_INTERFACE_KEYS = %w[display_name short_description default_prompt].freeze
@@ -190,6 +203,12 @@ def validate_marketplace
       raise "#{entry_path}: expected ON_INSTALL authentication policy" unless authentication == "ON_INSTALL"
       raise "#{entry_path}: product gating is not approved" if policy.key?("products")
       raise "#{entry_path}: unexpected category" unless category == EXPECTED_PLUGIN_CATEGORY
+    elsif plugin_name == ASCENDC_PLUGIN_NAME
+      raise "#{entry_path}: unexpected source path" unless source_path == ASCENDC_PLUGIN_SOURCE
+      raise "#{entry_path}: expected AVAILABLE installation policy" unless installation == "AVAILABLE"
+      raise "#{entry_path}: expected ON_INSTALL authentication policy" unless authentication == "ON_INSTALL"
+      raise "#{entry_path}: product gating is not approved" if policy.key?("products")
+      raise "#{entry_path}: unexpected category" unless category == EXPECTED_PLUGIN_CATEGORY
     end
 
     validate_plugin_manifest(plugin_root, plugin_name)
@@ -304,6 +323,211 @@ def validate_skill(skills_root, name)
   puts "ok: #{name}"
 end
 
+def validate_standard_skill(skills_root, name)
+  dir = File.join(skills_root, name)
+  skill_path = File.join(dir, "SKILL.md")
+  interface_path = File.join(dir, "agents", "openai.yaml")
+  raise "#{name}: missing SKILL.md" unless File.file?(skill_path)
+  raise "#{name}: missing agents/openai.yaml" unless File.file?(interface_path)
+
+  content = File.read(skill_path)
+  frontmatter_text = extract_frontmatter(content, skill_path)
+  reject_duplicate_mapping_keys(frontmatter_text, skill_path)
+  frontmatter = load_yaml(frontmatter_text, skill_path)
+  raise "#{skill_path}: frontmatter must be a mapping" unless frontmatter.is_a?(Hash)
+  raise "#{skill_path}: frontmatter must contain only name and description" unless frontmatter.keys.map(&:to_s).sort == %w[description name]
+  raise "#{skill_path}: name must match directory" unless frontmatter["name"] == name
+  raise "#{skill_path}: invalid hyphen-case name" unless name.match?(/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/)
+  raise "#{skill_path}: name exceeds 64 characters" if name.length > 64
+  description = frontmatter["description"]
+  raise "#{skill_path}: description must be a non-empty string" unless description.is_a?(String) && !description.strip.empty?
+  raise "#{skill_path}: description exceeds 1024 characters" if description.length > 1024
+  raise "#{skill_path}: description contains angle brackets" if description.include?("<") || description.include?(">")
+  raise "#{skill_path}: initializer placeholder remains" if content.match?(/\[TODO|PLACEHOLDER/)
+  raise "#{skill_path}: SKILL.md exceeds 500 lines" if content.lines.length > 500
+
+  interface_text = File.read(interface_path)
+  reject_duplicate_mapping_keys(interface_text, interface_path)
+  interface_doc = load_yaml(interface_text, interface_path)
+  interface = interface_doc["interface"]
+  raise "#{interface_path}: interface must be a mapping" unless interface.is_a?(Hash)
+  missing = REQUIRED_INTERFACE_KEYS - interface.keys.map(&:to_s)
+  raise "#{interface_path}: missing interface keys: #{missing.join(', ')}" unless missing.empty?
+
+  REQUIRED_INTERFACE_KEYS.each do |key|
+    value = interface[key]
+    raise "#{interface_path}: #{key} must be a non-empty string" unless value.is_a?(String) && !value.empty?
+    key_lines = interface_text.lines.select { |line| line.match?(/^  #{Regexp.escape(key)}:/) }
+    raise "#{interface_path}: #{key} must appear exactly once" unless key_lines.length == 1
+    raise "#{interface_path}: #{key} must be double-quoted" unless key_lines.first.match?(/^  #{Regexp.escape(key)}: ".*"\s*$/)
+  end
+
+  short_description = interface["short_description"]
+  unless (25..64).cover?(short_description.length)
+    raise "#{interface_path}: short_description must contain 25-64 characters"
+  end
+  default_prompt = interface["default_prompt"]
+  raise "#{interface_path}: default_prompt must mention $#{name}" unless default_prompt.include?("$#{name}")
+
+  puts "ok: #{name}"
+end
+
+def validate_relative_markdown_links(root)
+  Dir.glob(File.join(root, "**", "*.md")).sort.each do |path|
+    content = File.read(path)
+    content.scan(/\[[^\]]*\]\(([^)]+)\)/).flatten.each do |raw_target|
+      next if raw_target.match?(%r{\A(?:https?://|mailto:)})
+
+      relative_target = raw_target.sub(/#.*/, "")
+      next if relative_target.empty?
+
+      resolved = File.expand_path(relative_target, File.dirname(path))
+      raise "#{path}: broken relative link: #{raw_target}" unless File.exist?(resolved)
+    end
+  end
+end
+
+def validate_ascendc_migration_contract
+  forbidden_patterns = {
+    "Claude Task instruction" => /Task 工具|subagent_type=Explore/,
+    "legacy split online search dependency" => /ascend_search_(?:client|skill)|ascend_content_fetcher|requirements\.txt/,
+    "removed duplicate skill" => /skills\/commit-push-pr/
+  }
+  runtime_files = Dir.glob(File.join(ASCENDC_PLUGIN_ROOT, "**", "*")).select { |path| File.file?(path) }
+  forbidden_patterns.each do |label, pattern|
+    offender = runtime_files.find { |path| File.read(path, mode: "rb").force_encoding("UTF-8").match?(pattern) }
+    raise "#{offender}: #{label} remains" if offender
+  end
+
+  license_path = File.join(ASCENDC_PLUGIN_ROOT, "LICENSE")
+  raise "#{license_path}: plugin-specific license is missing" unless File.file?(license_path)
+  license_text = File.read(license_path)
+  unless license_text.start_with?("CANN Open Software License Agreement Version 2.0")
+    raise "#{license_path}: unexpected license text"
+  end
+
+  python_scripts = [
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "ascendc-docs-search",
+      "scripts",
+      "search_ascend_docs.py"
+    ),
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "ascendc-code-review",
+      "scripts",
+      "get_gitcode_pr_diff.py"
+    ),
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "cann-env-setup",
+      "scripts",
+      "inspect_packages.py"
+    )
+  ]
+  syntax_check = "import sys; path = sys.argv[1]; compile(open(path, encoding='utf-8').read(), path, 'exec')"
+  python_scripts.each do |path|
+    raise "#{path}: required Python helper is missing" unless File.file?(path)
+    unless system("python3", "-c", syntax_check, path, out: File::NULL, err: File::NULL)
+      raise "#{path}: Python syntax validation failed"
+    end
+  end
+
+  shell_scripts = %w[check_env.sh npu_info.sh].map do |name|
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "ascendc-env-check",
+      "scripts",
+      name
+    )
+  end
+  shell_scripts.each do |path|
+    raise "#{path}: required diagnostic script is missing" unless File.file?(path)
+    unless system("bash", "-n", path, out: File::NULL, err: File::NULL)
+      raise "#{path}: shell syntax validation failed"
+    end
+    script = File.read(path)
+    if script.match?(/\b(?:sudo|kill|pkill|reboot|shutdown|npu-smi\s+(?:reset|set))\b/)
+      raise "#{path}: mutating command remains in a read-only diagnostic script"
+    end
+  end
+
+  invalid_active_path_ok = system(
+    {
+      "ASCEND_HOME_PATH" => "/__codex_missing_ascend_home__",
+      "ASCEND_OPP_PATH" => nil,
+      "ASCEND_TOOLKIT_HOME" => nil,
+      "ASCEND_HOME" => nil,
+      "CANN_HOME" => nil,
+      "ASCEND_ENV_CHECK_ROOTS" => "/__codex_missing_ascend_root__"
+    },
+    "bash",
+    shell_scripts.first,
+    out: File::NULL,
+    err: File::NULL
+  )
+  raise "#{shell_scripts.first}: an invalid active ASCEND_HOME_PATH must fail" if invalid_active_path_ok
+
+  calibration_requirements = {
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-reduce-pattern.md") => [
+      "bool isSrcInnerPad",
+      "bool isReuseSource",
+      "uint32_t& maxValue",
+      "uint32_t& minValue",
+      "atlasascendc_api_07_10147.html"
+    ],
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-precision.md") => [
+      "CAST_NONE",
+      "CAST_ODD",
+      "atlasascendc_api_07_0073.html"
+    ],
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-transpose.md") => [
+      "blanket \u201cGather cannot process uint8\u201d",
+      "Do not require `VECOUT depth >= 2`",
+      "atlasascendc_api_07_0200.html",
+      "atlasascendc_api_07_0092.html",
+      "atlasascendc_api_07_0137.html"
+    ],
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-host-runtime.md") => [
+      "aclrtGetDeviceCount",
+      "does not state that `aclrtSetDevice` must be called before this query",
+      "aclcppdevg_03_1867.html"
+    ]
+  }
+  calibration_requirements.each do |path, required_fragments|
+    content = File.read(path)
+    missing = required_fragments.reject { |fragment| content.include?(fragment) }
+    unless missing.empty?
+      raise "#{path}: missing calibration evidence: #{missing.join(', ')}"
+    end
+  end
+
+  validate_relative_markdown_links(ASCENDC_PLUGIN_ROOT)
+
+  tests_root = File.join(ROOT, "tests", ASCENDC_PLUGIN_NAME)
+  test_environment = { "PYTHONDONTWRITEBYTECODE" => "1" }
+  unless system(
+    test_environment,
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    tests_root,
+    "-p",
+    "test_*.py",
+    out: File::NULL,
+    err: File::NULL
+  )
+    raise "#{tests_root}: Ascend C offline regression tests failed"
+  end
+end
+
 def validate_scenarios
   actual = Dir.children(SCENARIOS_ROOT).select do |entry|
     File.file?(File.join(SCENARIOS_ROOT, entry))
@@ -373,6 +597,16 @@ unless actual_skills == EXPECTED_SKILLS.sort
   exit 1
 end
 
+actual_ascendc_skills = Dir.children(ASCENDC_SKILLS_ROOT).select do |entry|
+  File.directory?(File.join(ASCENDC_SKILLS_ROOT, entry))
+end.sort
+unless actual_ascendc_skills == EXPECTED_ASCENDC_SKILLS.sort
+  missing = EXPECTED_ASCENDC_SKILLS - actual_ascendc_skills
+  extra = actual_ascendc_skills - EXPECTED_ASCENDC_SKILLS
+  warn "error: Ascend C skill inventory mismatch; missing=#{missing.inspect} extra=#{extra.inspect}"
+  exit 1
+end
+
 begin
   validate_marketplace
   manifest, declared_skills_root = validate_plugin_manifest(PLUGIN_ROOT, PLUGIN_NAME)
@@ -386,6 +620,22 @@ begin
 
   EXPECTED_SKILLS.each { |name| validate_skill(SKILLS_ROOT, name) }
   validate_scenarios
+
+  ascendc_manifest, ascendc_declared_skills_root = validate_plugin_manifest(ASCENDC_PLUGIN_ROOT, ASCENDC_PLUGIN_NAME)
+  unless ascendc_manifest["version"] == ASCENDC_PLUGIN_VERSION
+    raise "#{ASCENDC_PLUGIN_ROOT}: unexpected version"
+  end
+  unless ascendc_manifest["license"] == ASCENDC_PLUGIN_LICENSE
+    raise "#{ASCENDC_PLUGIN_ROOT}: unexpected license identifier"
+  end
+  unless ascendc_manifest.dig("interface", "category") == EXPECTED_PLUGIN_CATEGORY
+    raise "#{ASCENDC_PLUGIN_ROOT}: unexpected plugin category"
+  end
+  unless ascendc_declared_skills_root == File.realpath(ASCENDC_SKILLS_ROOT)
+    raise "#{ASCENDC_PLUGIN_ROOT}: skills path must resolve to ./skills/"
+  end
+  EXPECTED_ASCENDC_SKILLS.each { |name| validate_standard_skill(ASCENDC_SKILLS_ROOT, name) }
+  validate_ascendc_migration_contract
 rescue StandardError => e
   warn "error: #{e.message}"
   exit 1
@@ -394,3 +644,5 @@ end
 puts "validated plugin #{PLUGIN_NAME} at version #{EXPECTED_PLUGIN_VERSION}"
 puts "validated #{EXPECTED_SKILLS.length} skills"
 puts "validated #{EXPECTED_SCENARIOS.length} behavior scenario definitions"
+puts "validated plugin #{ASCENDC_PLUGIN_NAME} at version #{ASCENDC_PLUGIN_VERSION}"
+puts "validated #{EXPECTED_ASCENDC_SKILLS.length} Ascend C skills"

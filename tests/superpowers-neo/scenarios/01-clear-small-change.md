@@ -2,7 +2,7 @@
 
 ## Skills Under Test
 
-- `superpowers-neo-brainstorming`
+- `superpowers-neo-designing-complex-changes`
 - `superpowers-neo-writing-plans`
 
 ## Request
@@ -18,6 +18,6 @@ In a small repository with an existing test, rename one misspelled user-facing l
 
 ## Failure Signals
 
-- Starting a mandatory brainstorming interview.
+- Starting the complex-change design workflow for this mechanical edit.
 - Requiring multiple design alternatives.
 - Writing a spec or plan for the mechanical change.

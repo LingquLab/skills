@@ -8,16 +8,16 @@ TARGET="${CODEX_HOME:-$HOME/.codex}/skills"
 DRY_RUN=false
 
 SKILLS=(
-  superpowers-neo-brainstorming
+  superpowers-neo-designing-complex-changes
   superpowers-neo-writing-plans
   superpowers-neo-using-git-worktrees
   superpowers-neo-executing-plans
-  superpowers-neo-testing-strategy
+  superpowers-neo-validation-strategy
   superpowers-neo-systematic-debugging
   superpowers-neo-requesting-code-review
-  superpowers-neo-receiving-code-review
+  superpowers-neo-handling-code-review-feedback
   superpowers-neo-verification-before-completion
-  superpowers-neo-finishing-a-development-branch
+  superpowers-neo-git-delivery
 )
 
 usage() {

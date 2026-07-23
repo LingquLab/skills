@@ -1,0 +1,4 @@
+interface:
+  display_name: "CANN Environment Setup"
+  short_description: "Plan and verify a version-matched CANN installation"
+  default_prompt: "Use $cann-env-setup to plan a safe, version-matched CANN installation for this host."

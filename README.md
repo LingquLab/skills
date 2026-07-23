@@ -22,7 +22,28 @@ Start a new Codex task after installation so newly installed skills are discover
 
 | Plugin | Description | Version |
 |---|---|---|
-| `superpowers-neo` | Pragmatic software-development workflows with rigor scaled to task complexity and risk | `0.1.0` |
+| `superpowers-neo` | Pragmatic software-development workflows with rigor scaled to task complexity and risk | `0.2.0` |
+| `ascendc-development` | Version-aware Ascend C API, review, documentation, diagnostics, and CANN setup workflows | `0.1.0` |
+
+## Ascend C Development
+
+Install the plugin from the marketplace:
+
+```bash
+codex plugin add ascendc-development@lingqulab
+```
+
+The plugin contains five independently triggered skills:
+
+| Skill | Use when |
+|---|---|
+| `ascendc-api-best-practices` | Implementing or debugging Ascend C API usage and alignment, buffer, precision, or pipeline behavior |
+| `ascendc-code-review` | Reviewing Host, Tiling, Kernel, SIMT, build, or operator changes |
+| `ascendc-docs-search` | Locating version-matched local or official Ascend C documentation and examples |
+| `ascendc-env-check` | Performing read-only CANN environment and NPU visibility diagnostics |
+| `cann-env-setup` | Planning or carrying out a guarded, version-matched CANN installation or repair |
+
+These skills are adapted from TileXR's Claude skills at source commit `1e2619e793b5894a1aec2d7d6897dbe5f7c501c0`. Claude-specific tool calls, fixed environment assumptions, destructive diagnostic commands, and the duplicate `commit-push-pr` skill are intentionally not shipped. Useful online workflows remain scripted: one dependency-free client searches and fetches Huawei's official documentation, and another obtains public GitCode PR diffs through bounded shallow fetches. See the [migration audit](docs/specs/2026-07-23-ascendc-development-migration.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Superpowers Neo
 
@@ -32,23 +53,23 @@ Neo has no global entry skill. Each skill is independently discoverable and load
 
 | Skill | Use when |
 |---|---|
-| `superpowers-neo-brainstorming` | A change is complex, ambiguous, cross-component, or architecture-sensitive |
+| `superpowers-neo-designing-complex-changes` | A change is complex, ambiguous, cross-component, or architecture-sensitive |
 | `superpowers-neo-writing-plans` | Approved work needs a multi-step or subagent-ready implementation plan |
 | `superpowers-neo-using-git-worktrees` | Workspace isolation may be needed for dirty or parallel work |
 | `superpowers-neo-executing-plans` | An in-scope plan is ready for main-agent and scoped-subagent execution |
-| `superpowers-neo-testing-strategy` | A change needs validation proportional to its risk |
+| `superpowers-neo-validation-strategy` | A change needs validation proportional to its risk |
 | `superpowers-neo-systematic-debugging` | A bug or unexpected failure needs evidence-based diagnosis |
 | `superpowers-neo-requesting-code-review` | A substantial or risky change benefits from independent review |
-| `superpowers-neo-receiving-code-review` | Review feedback needs technical evaluation |
+| `superpowers-neo-handling-code-review-feedback` | Review feedback needs technical evaluation |
 | `superpowers-neo-verification-before-completion` | Work is about to be described as complete, fixed, or passing |
-| `superpowers-neo-finishing-a-development-branch` | Completed Git work needs scoped commit and delivery handling |
+| `superpowers-neo-git-delivery` | Completed Git work needs scoped commit and delivery handling |
 
 ### What Changes from Superpowers
 
 - No `using-superpowers` startup or umbrella skill.
-- Brainstorming and persistent plans trigger only when complexity justifies them.
+- Complex-change design and persistent plans trigger only when complexity justifies them.
 - Worktrees and subagents are selected by isolation and coordination value.
-- Testing is risk-driven; test-first development is useful but not universal.
+- Validation is risk-driven; test-first development is useful but not universal.
 - Independent review is selected by risk rather than required after every task.
 - Scoped task commits are authorized by default, as are normal pushes from established task-owned non-default branches; default-branch choices, PRs, merges, history rewrites, hook bypasses, and cleanup remain protected.
 - Skill-authoring methodology is not part of the shipped series.
@@ -65,7 +86,7 @@ ruby -c scripts/validate-skills.rb
 bash -n scripts/install.sh
 ```
 
-It checks the marketplace catalog, plugin manifests and paths, all ten Superpowers Neo skill packages, and all nine behavior scenario definitions.
+It checks the marketplace catalog, both plugin manifests and paths, all ten Superpowers Neo skill packages, all five Ascend C Development skill packages, relative documentation links, and all nine behavior scenario definitions.
 
 Behavioral validation is a fresh-agent evaluation. Give a new agent only the relevant `SKILL.md` files and the request section from one file under `tests/superpowers-neo/scenarios/`, then compare the response with its expected behaviors and failure signals. Do not include the expected result in the agent prompt.
 
@@ -123,4 +144,4 @@ Superpowers Neo is an independent adaptation inspired by [Superpowers](https://g
 
 ## License
 
-This marketplace and Superpowers Neo are licensed under the [MIT License](LICENSE).
+This marketplace and Superpowers Neo are licensed under the [MIT License](LICENSE). The `ascendc-development` plugin is separately licensed under the [CANN Open Software License Agreement Version 2.0](plugins/ascendc-development/LICENSE); see [third-party notices](THIRD_PARTY_NOTICES.md).
