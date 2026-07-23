@@ -1,129 +1,45 @@
-# 环境检查常见问题
+# Environment Check Troubleshooting
 
-## NPU 设备问题
+Keep this workflow read-only. Identify the failing layer before proposing a setup change.
 
-### 1. npu-smi 不可用
+## Toolkit Files Exist but the Shell Is Unconfigured
 
-**症状**：执行 `npu-smi` 提示命令未找到
+Evidence:
 
-**排查步骤**：
-1. 检查 CANN 是否安装：`ls /usr/local/Ascend/`
-2. 检查环境变量：`echo $ASCEND_HOME_PATH`
-3. 如果未设置，执行：`source /usr/local/Ascend/cann/set_env.sh`
+- `check_env.sh` reports an unset `ASCEND_HOME_PATH` and a discovered toolkit root.
+- Version metadata exists under that root.
+- Compiler tools may exist below the root but not on `PATH`.
 
-### 2. 设备未被识别
+Conclusion: CANN is installed, but the current shell has not selected that installation. Locate the vendor environment script near the reported root and hand the path to `$cann-env-setup`; do not source it or persist it during a read-only check.
 
-**症状**：`npu-smi list` 显示空或设备异常
+## Active Path Is Invalid
 
-**可能原因**：
-- 硬件未正确连接
-- 驱动未安装
-- 设备被占用
+Evidence:
 
-**排查命令**：
-```bash
-# 检查设备健康状态
-npu-smi health
+- `ASCEND_HOME_PATH` or `ASCEND_OPP_PATH` is set to a missing or unrecognized directory.
+- The script reports `[error]` and exits 1.
 
-# 查看设备详细信息
-npu-smi info
+Conclusion: the active process environment is invalid even if a separate toolkit is discovered. Report both paths rather than silently substituting the discovered installation.
 
-# 查看系统日志
-dmesg | grep -i npu
-```
+## Operator Repository Is Unclear
 
-### 3. 设备资源被占满
+An unset `ASCEND_OPP_PATH` does not prove that an ops package is absent. Check whether an `opp` directory exists below the selected toolkit root and inspect package/version metadata. A `vendors` directory establishes only that vendor directories exist; it does not prove that their binaries can be loaded.
 
-**症状**：算子运行提示设备忙
+## No NPU Status Output
 
-**排查命令**：
-```bash
-# 查看设备使用情况
-npu-smi info -t usages
+1. Run `npu-smi --help` if `npu-smi` exists, because supported subcommands vary by driver release.
+2. Run `bash scripts/npu_info.sh` and preserve its stderr and exit status.
+3. If it falls back to `asys`, record the exact executable and raw health output.
+4. Treat a missing tool, a command failure, an empty result, and an unhealthy device as different boundaries.
 
-# 记录占用者；不要在只读诊断中释放其他进程
-npu-smi info -t usages -i 0
-```
+Do not reset devices, release processes, switch performance modes, or inspect privileged kernel logs without a separate reason and approval.
 
-## CANN 环境问题
+## Device Selection
 
-### 1. ASCEND_HOME_PATH 未设置
+Do not use `ASCEND_DEVICE_ID` as a universal multi-card selector. Official environment-variable documentation defines it as a logical device ID for specified framework and AOE scenarios. Other runtimes may select devices through APIs, rank configuration, container visibility, or other documented variables. Determine the workload first and use its version-matched documentation.
 
-**症状**：
-```
-ERROR: ASCEND_HOME_PATH not set
-```
+Do not assume that an `npu-smi -i` selector is the same namespace as a runtime logical device ID. Confirm card, device, chip, and logical identifiers from the installed tool's help and raw status table.
 
-**解决方案**：
-```bash
-# root 用户
-source /usr/local/Ascend/cann/set_env.sh
+## Container Boundary
 
-# 非 root 用户
-source $HOME/Ascend/cann/set_env.sh
-
-# 验证
-echo $ASCEND_HOME_PATH
-```
-
-### 2. ASCEND_OPP_PATH 未设置
-
-**症状**：
-```
-ERROR: ASCEND_OPP_PATH not set
-```
-
-**说明**：编译时可跳过，运行算子时必需
-
-**解决方案**：
-1. 安装 CANN Ops 包
-2. source set_env.sh
-
-### 3. 自定义算子未找到
-
-**症状**：
-```
-ERROR: 561003 - Kernel lookup failed
-```
-
-**排查**：
-1. 检查算子包是否安装
-2. 检查 LD_LIBRARY_PATH
-3. 运行 `bash scripts/check_env.sh`
-
-### 4. 运行时库依赖问题
-
-**症状**：
-```
-libascend_*.so: cannot open shared object file
-```
-
-**解决方案**：
-```bash
-# 添加库路径
-export LD_LIBRARY_PATH=$ASCEND_HOME_PATH/runtime/lib64:$LD_LIBRARY_PATH
-
-# 或重新 source 环境
-source $ASCEND_HOME_PATH/set_env.sh
-```
-
-## 混合部署问题
-
-### 1. 多卡环境配置
-
-**设置单卡**：
-```bash
-export ASCEND_DEVICE_ID=0  # 使用 0 号卡
-```
-
-**查看卡数**：
-```bash
-npu-smi list | grep -c "Ascend"
-```
-
-### 2. 容器环境
-
-**确保**：
-- 容器已映射 NPU 设备（--device）
-- 容器内已安装 CANN
-- 已正确 source 环境变量
+Report separately whether device nodes are exposed to the container, whether driver utilities are callable, whether toolkit files exist in the container, and whether the current process environment selects them. Success at one layer does not prove the others.

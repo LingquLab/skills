@@ -19,6 +19,17 @@ Prioritize defects that can change behavior, corrupt memory, break compatibility
 
 Do not require the user to restate code already available in the workspace or a rule already implied by the review request.
 
+## Acquire a GitCode PR Diff
+
+When the review target is a public `https://gitcode.com` pull request and its diff is not already available, resolve `<skill-dir>` as the directory containing this `SKILL.md` and run the bundled script. Start with the stat, then fetch the relevant diff:
+
+```bash
+python3 <skill-dir>/scripts/get_gitcode_pr_diff.py --repo https://gitcode.com/owner/repository --pr 123 --stat
+python3 <skill-dir>/scripts/get_gitcode_pr_diff.py --repo https://gitcode.com/owner/repository --pr 123 --file-filter '**/*.asc'
+```
+
+The script writes to stdout by default; use `--output <path>` only when a file artifact is useful. It accepts only canonical GitCode HTTPS repository or matching pull-request URLs, runs Git noninteractively, and cleans its temporary bare repository. If the merge ref is unavailable, it stops instead of guessing a target branch; confirm the PR target and rerun with `--base <target-branch>`. A diff does not replace call-path context: inspect the available local checkout or request the missing source when definitions or guards outside the patch affect a finding.
+
 ## Review Method
 
 1. Trace inputs, shapes, tiling values, offsets, buffer sizes, synchronization, and cleanup through the real call path.

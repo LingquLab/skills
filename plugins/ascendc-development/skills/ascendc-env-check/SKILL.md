@@ -19,8 +19,10 @@ bash scripts/npu_info.sh
 ```
 
 4. If a script is unavailable or its output format is not recognized, fall back to the commands in `references/npu_commands.md` and `references/asys_commands.md`.
-5. Correlate environment variables with real paths and version metadata. Do not treat a set variable alone as proof of a usable installation.
-6. Report errors, warnings, and unavailable checks separately. A host-only environment check does not prove that a kernel compiles or runs correctly on hardware.
+5. Correlate environment variables with discovered toolkit roots, tool locations, real paths, and version metadata. A missing `ASCEND_HOME_PATH` means the current shell is not configured; it does not prove that CANN is absent.
+6. Interpret `[error]` as an invalid active configuration, `[warn]` as missing or incomplete development evidence, and `[info]` as optional or discovered state. Warnings do not change the script's zero exit status; errors do.
+7. Preserve the raw bounded device output from `npu_info.sh`. Do not infer card count, health, or identifier semantics by parsing one assumed table layout.
+8. Keep host discovery, compile proof, and real-hardware runtime proof as separate conclusions.
 
 ## Reference Routing
 
@@ -33,9 +35,9 @@ bash scripts/npu_info.sh
 
 - Do not install packages, source user profiles permanently, modify shell startup files, reset devices, or terminate workloads during an environment check.
 - Avoid interactive monitors such as `npu-smi top` in automation; use bounded status commands.
-- Do not infer device availability from command presence alone. Capture command exit status and actual device output.
+- Do not infer device availability from command presence alone. Capture command exit status and the bounded raw device output.
 - Redact tokens, credentials, and unrelated environment variables.
 
 ## Output
 
-State the target host and user, detected CANN version and source path, relevant toolkit/operator variables, NPU visibility, and the exact failing boundary. Give the next diagnostic or setup action without performing a mutation unless requested.
+State the target host and user, selected or discovered toolkit root, detected CANN version and metadata source, operator repository evidence, NPU visibility, and the exact failing boundary. Distinguish an installed toolkit from an environment loaded in the current shell. Give the next diagnostic or setup action without performing a mutation unless requested.

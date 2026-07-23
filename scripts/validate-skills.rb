@@ -406,20 +406,126 @@ def validate_ascendc_migration_contract
     raise "#{license_path}: unexpected license text"
   end
 
-  docs_search_script = File.join(
-    ASCENDC_PLUGIN_ROOT,
-    "skills",
-    "ascendc-docs-search",
-    "scripts",
-    "search_ascend_docs.py"
-  )
-  raise "#{docs_search_script}: official documentation search script is missing" unless File.file?(docs_search_script)
+  python_scripts = [
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "ascendc-docs-search",
+      "scripts",
+      "search_ascend_docs.py"
+    ),
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "ascendc-code-review",
+      "scripts",
+      "get_gitcode_pr_diff.py"
+    ),
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "cann-env-setup",
+      "scripts",
+      "inspect_packages.py"
+    )
+  ]
   syntax_check = "import sys; path = sys.argv[1]; compile(open(path, encoding='utf-8').read(), path, 'exec')"
-  unless system("python3", "-c", syntax_check, docs_search_script, out: File::NULL, err: File::NULL)
-    raise "#{docs_search_script}: Python syntax validation failed"
+  python_scripts.each do |path|
+    raise "#{path}: required Python helper is missing" unless File.file?(path)
+    unless system("python3", "-c", syntax_check, path, out: File::NULL, err: File::NULL)
+      raise "#{path}: Python syntax validation failed"
+    end
+  end
+
+  shell_scripts = %w[check_env.sh npu_info.sh].map do |name|
+    File.join(
+      ASCENDC_PLUGIN_ROOT,
+      "skills",
+      "ascendc-env-check",
+      "scripts",
+      name
+    )
+  end
+  shell_scripts.each do |path|
+    raise "#{path}: required diagnostic script is missing" unless File.file?(path)
+    unless system("bash", "-n", path, out: File::NULL, err: File::NULL)
+      raise "#{path}: shell syntax validation failed"
+    end
+    script = File.read(path)
+    if script.match?(/\b(?:sudo|kill|pkill|reboot|shutdown|npu-smi\s+(?:reset|set))\b/)
+      raise "#{path}: mutating command remains in a read-only diagnostic script"
+    end
+  end
+
+  invalid_active_path_ok = system(
+    {
+      "ASCEND_HOME_PATH" => "/__codex_missing_ascend_home__",
+      "ASCEND_OPP_PATH" => nil,
+      "ASCEND_TOOLKIT_HOME" => nil,
+      "ASCEND_HOME" => nil,
+      "CANN_HOME" => nil,
+      "ASCEND_ENV_CHECK_ROOTS" => "/__codex_missing_ascend_root__"
+    },
+    "bash",
+    shell_scripts.first,
+    out: File::NULL,
+    err: File::NULL
+  )
+  raise "#{shell_scripts.first}: an invalid active ASCEND_HOME_PATH must fail" if invalid_active_path_ok
+
+  calibration_requirements = {
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-reduce-pattern.md") => [
+      "bool isSrcInnerPad",
+      "bool isReuseSource",
+      "uint32_t& maxValue",
+      "uint32_t& minValue",
+      "atlasascendc_api_07_10147.html"
+    ],
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-precision.md") => [
+      "CAST_NONE",
+      "CAST_ODD",
+      "atlasascendc_api_07_0073.html"
+    ],
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-transpose.md") => [
+      "blanket \u201cGather cannot process uint8\u201d",
+      "Do not require `VECOUT depth >= 2`",
+      "atlasascendc_api_07_0200.html",
+      "atlasascendc_api_07_0092.html",
+      "atlasascendc_api_07_0137.html"
+    ],
+    File.join(ASCENDC_SKILLS_ROOT, "ascendc-api-best-practices", "references", "api-host-runtime.md") => [
+      "aclrtGetDeviceCount",
+      "does not state that `aclrtSetDevice` must be called before this query",
+      "aclcppdevg_03_1867.html"
+    ]
+  }
+  calibration_requirements.each do |path, required_fragments|
+    content = File.read(path)
+    missing = required_fragments.reject { |fragment| content.include?(fragment) }
+    unless missing.empty?
+      raise "#{path}: missing calibration evidence: #{missing.join(', ')}"
+    end
   end
 
   validate_relative_markdown_links(ASCENDC_PLUGIN_ROOT)
+
+  tests_root = File.join(ROOT, "tests", ASCENDC_PLUGIN_NAME)
+  test_environment = { "PYTHONDONTWRITEBYTECODE" => "1" }
+  unless system(
+    test_environment,
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    tests_root,
+    "-p",
+    "test_*.py",
+    out: File::NULL,
+    err: File::NULL
+  )
+    raise "#{tests_root}: Ascend C offline regression tests failed"
+  end
 end
 
 def validate_scenarios

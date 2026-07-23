@@ -1,132 +1,70 @@
-# Reduce Pattern 接口详解
+# Reduce Pattern Interfaces
 
-跨行批量 Reduce 的 Pattern 接口高级用法。
+This reference captures the high-level `ReduceMax` workflow verified against CANN 9.0. Kernel overloads, supported patterns and types, temporary-space rules, and product support can change; retrieve the exact target-release page before copying a signature.
 
----
+## Pattern and Shape
 
-## 两种重载形式
+`ReducePattern::AR` reduces the second axis of a two-dimensional input; `ReducePattern::RA` reduces the first. Do not assume every listed `ReducePattern` enum value is supported by every Reduce API.
 
-### 形式1：显式传入 sharedTmpBuffer（推荐）
+The Kernel API commonly has two forms:
 
-```cpp
-template <class T, class pattern, bool isReuseSource = false>
-__aicore__ inline void ReduceMax(
-    const LocalTensor<T>& dstTensor,
-    const LocalTensor<T>& srcTensor,
-    const LocalTensor<uint8_t>& sharedTmpBuffer,  // 显式传入
-    const uint32_t srcShape[],
-    bool srcInnerPad
-);
+```text
+ReduceMax<T, pattern, isReuseSource>(dst, src, sharedTmpBuffer, srcShape, isSrcInnerPad)
+ReduceMax<T, pattern, isReuseSource>(dst, src, srcShape, isSrcInnerPad)
 ```
 
-### 形式2：框架自动申请临时空间
+This is a schematic call shape, not a version-independent C++ declaration. In the first form the caller passes temporary UB explicitly. In the second the framework manages the temporary tensor according to that release's documented reservation mechanism.
+
+`isSrcInnerPad` describes the actual data being reduced on the innermost axis:
+
+- `true`: that innermost-axis data is 32-byte aligned;
+- `false`: it is not 32-byte aligned.
+
+It is not a fixed SoC selector, and `srcShape` should not be silently replaced with an aligned shape unless the selected API contract explicitly requires that representation.
+
+## Host-Side Temporary Size
+
+CANN 9.0 documents this Host-side helper:
 
 ```cpp
-template <class T, class pattern, bool isReuseSource = false>
-__aicore__ inline void ReduceMax(
-    const LocalTensor<T>& dstTensor,
-    const LocalTensor<T>& srcTensor,
-    const uint32_t srcShape[],
-    bool srcInnerPad
-);
+void GetReduceMaxMaxMinTmpSize(
+    const ge::Shape& srcShape,
+    const ge::DataType dataType,
+    ReducePattern pattern,
+    bool isSrcInnerPad,
+    bool isReuseSource,
+    uint32_t& maxValue,
+    uint32_t& minValue);
 ```
 
-> **⚠️ 形式2 必须预留临时空间**，否则运行时 UB 越界。详见 [临时空间预留](#临时空间预留)。
-
----
-
-## Pattern 类型
-
-| Pattern | 方向 | 输入形状 | 输出形状 | 用途 |
-|---------|-----|---------|---------|------|
-| `Pattern::Reduce::AR` | 沿最后一维（列方向） | (R, C) | (R,) | 每行归约为1个值 |
-| `Pattern::Reduce::RA` | 沿第一维（行方向） | (R, C) | (C,) | 每列归约为1个值 |
-
----
-
-## 参数说明
-
-| 参数 | 类型 | 说明 |
-|-----|------|------|
-| `T` | half/float | 数据类型 |
-| `pattern` | Pattern::Reduce::AR/RA | 归约模式 |
-| `isReuseSource` | bool | 是否复用源操作数（默认 false） |
-| `dstTensor` | LocalTensor\<T\> | 输出张量 |
-| `srcTensor` | LocalTensor\<T\> | 输入张量 |
-| `sharedTmpBuffer` | LocalTensor\<uint8_t\> | 临时缓存（形式1） |
-| `srcShape` | uint32_t[] | `{rows, alignedCols}`，**alignedCols 必须 32 字节对齐** |
-| `srcInnerPad` | bool | A2/A3 芯片只支持 `true` |
-
----
-
-## 临时空间预留
-
-**两种形式都需要预留临时空间**：
-
-| 方式 | 预留方法 | 优点 | 推荐度 |
-|-----|---------|------|-------|
-| **形式1** | `InitBuffer(tmpBuf, tmpSize)` + 显式传入 | 内存可控、可复用 | ⭐⭐⭐⭐⭐ |
-| **形式2** | `InitBuffer(tmpBuf, tmpSize)`（框架自动使用） | 代码简洁 | ⭐⭐⭐ |
-
-**临时空间大小计算**：
+Example Host-side calculation for a 16 by 32 FP32 input:
 
 ```cpp
-#include "kernel_operator.h"
-
-uint32_t maxSize, minSize;
-AscendC::GetReduceMaxMaxMinTmpSize(srcShape, sizeof(T), isReuse, maxSize, minSize);
-
-// 使用 maxSize（安全）或 minSize（节省内存）
-pipe->InitBuffer(tmpBuf, maxSize);
+ge::Shape srcShape({16, 32});
+uint32_t maxValue = 0;
+uint32_t minValue = 0;
+AscendC::GetReduceMaxMaxMinTmpSize(
+    srcShape,
+    ge::DataType::DT_FLOAT,
+    AscendC::ReducePattern::AR,
+    true,
+    false,
+    maxValue,
+    minValue);
 ```
 
-参考文档：`asc-devkit/docs/api/context/GetReduceMaxMaxMinTmpSize.md`
+Pass a selected size through Tiling data and ensure the Kernel receives at least `minValue` bytes. `maxValue` is a performance-oriented upper reference and can exceed available UB; it is not an instruction to allocate blindly. Keep `pattern`, alignment, reuse, shape, and data type identical between the Host query and Kernel call.
 
----
+## Review Checklist
 
-## 完整示例
+- Match the exact Kernel overload and template parameter names in target headers.
+- Verify `srcShape`, `isSrcInnerPad`, and `isReuseSource` describe the real input.
+- Keep the Host temporary-size query and Kernel call parameters consistent.
+- Check the selected temporary size against remaining UB and the documented minimum.
+- Verify destination size and layout for the selected pattern.
+- Compile with the target CANN release; do not infer support from enum declarations alone.
 
-### 示例1：ReduceMax（AR/RA Pattern）
+## Evidence
 
-```cpp
-AscendC::LocalTensor<float> dstLocal = outQueue.AllocTensor<float>();
-AscendC::LocalTensor<float> srcLocal = inQueue.DeQue<float>();
-AscendC::LocalTensor<uint8_t> tmpLocal = tmpBuf.Get<uint8_t>();
-
-uint32_t srcShape[] = {rows, alignedCols};  // alignedCols 必须 32 字节对齐
-constexpr bool isReuse = true;
-
-// AR Pattern：每行归约为1个值 → 输出 rows 个值
-AscendC::ReduceMax<float, AscendC::Pattern::Reduce::AR, isReuse>(
-    dstLocal, srcLocal, tmpLocal, srcShape, true);
-
-// RA Pattern：每列归约为1个值 → 输出 alignedCols 个值
-AscendC::ReduceMax<float, AscendC::Pattern::Reduce::RA, isReuse>(
-    dstLocal, srcLocal, tmpLocal, srcShape, true);
-```
-
-### 示例2：ReduceSum（框架自动申请）
-
-```cpp
-// ⚠️ 必须提前预留临时空间
-AscendC::LocalTensor<float> dstLocal = outQueue.AllocTensor<float>();
-AscendC::LocalTensor<float> srcLocal = inQueue.DeQue<float>();
-
-uint32_t srcShape[] = {rows, alignedCols};
-
-AscendC::ReduceSum<float, AscendC::Pattern::Reduce::AR, true>(
-    dstLocal, srcLocal, srcShape, true);
-```
-
----
-
-## 对比总结
-
-| 对比项 | 形式1（显式传入） | 形式2（框架申请） |
-|-------|-----------------|------------------|
-| tmp 参数 | ✅ 显式传入 | ❌ 框架自动申请 |
-| 预留空间 | ✅ 调用时传入即可 | ⚠️ **必须在 InitBuffer 预留** |
-| 内存管理 | 手动管理，可复用 | 需提前预留，易遗漏 |
-| 推荐度 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-
-**推荐使用形式1**，避免遗漏预留空间导致运行时错误。
+- CANN 9.0 `GetReduceMaxMaxMinTmpSize`: https://www.hiascend.com/document/detail/zh/canncommercial/900/API/ascendcopapi/atlasascendc_api_07_10147.html
+- CANN 9.0 high-level `ReduceMax`: https://www.hiascend.com/document/detail/zh/canncommercial/900/API/ascendcopapi/atlasascendc_api_07_10055.html

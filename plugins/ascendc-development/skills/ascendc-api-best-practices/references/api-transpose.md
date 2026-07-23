@@ -1,8 +1,10 @@
 # Transpose API 最佳实践
 
-本文档聚焦 small-channel transpose 中常见的 API 组合、硬约束和反模式。
+本文档聚焦 small-channel transpose 中一个已使用过的 API 组合和常见风险。
 
-> **当前覆盖范围**：本文档当前仅覆盖**小通道 transpose**；大通道及通用 transpose 场景暂未包含，后续可按需要补充。
+> **当前覆盖范围**：这是一个 half、小通道、16x16 分块方案快照，不是
+> `TransDataTo5HD` 或 `Gather` 的通用契约。先核对目标 CANN、SoC、
+> 数据类型和重载，再复用布局或参数。
 
 ***
 
@@ -12,7 +14,7 @@
 
 原理说明：
 
-- step1. TransDataTo5HD 每次一定要输入16行(不满16行时也需要填充有效数据,  比如第0行，否则会出现未知异常)，指令操作将16行\[16, N]转为16列\[N, 16]，一次repeat完成\[16,16]的转置，repeat (N + 15) / 16 次后，得到\[N, 16]
+- step1. 本方案对 half 使用 16 个可读源地址组成 16x16 分块；不足的逻辑行指向已分配的填充数据。不要从这个方案推导其他数据类型的矩阵形状。
 - step2. 当转置前的行数\[比如C]小于16时，需要通过Gather操作从前面TransDataTo5HD得到的\[N, 16]，gather出\[N, C]，offset需要在kernel中提前构造好；
 
 ### 1.2 `TransDataTo5HD` 转置输入
@@ -37,6 +39,9 @@ uint16_t srcRS = (repeats == 1) ? 0 : 1;
 TransDataTo5HDParams params(false, false, static_cast<uint8_t>(repeats), dstRS, srcRS);
 TransDataTo5HD<half>(dstList, srcList, params);
 ```
+
+该代码假设 `tileNA` 是 16 的倍数。非整块尾部必须使用目标接口支持的
+tail/padding 方案，不能只把整除改成向上取整后继续读取越界数据。
 
 **具体样例（C=3, tileNA=32）：理解输入输出数据排布**
 
@@ -118,17 +123,20 @@ Row 1 :  a[0][1]   a[1][1]   a[2][1]
 Row31 :  a[0][31]  a[1][31]  a[2][31]
 ```
 
-`TransDataTo5HD` 的输出每个 16-half block 只有前 `channelCount` 个位置有效；剩余位置是 padding。后续必须再用 `Gather` 取出有效值。
+在本方案的填充布局中，每个 16-half block 只有前 `channelCount` 个位置
+是逻辑结果；可用 `Gather` 提取，也可选择另一个满足目标类型和布局的
+已验证路线。
 
 ### 1.3 `Gather` 提取有效通道
 
-```cpp
-auto halfOut = halfLocal;
-Gather(halfOut, vnLocal, offsetBuff, 0, validCount);
-Cast(outLocal, halfOut, RoundMode::CAST_ROUND, validCount);
+```text
+halfOut = Gather(vnLocal, offsetBuff, target-supported Gather types)
+outLocal = Cast(halfOut, target-supported source/destination RoundMode)
 ```
 
-如果前面已经在 FP32 阶段完成了 in-place round，那么这里的 `Gather` / `Cast` 往往会按对齐后的 count 处理，最终 `half -> uint8` 也可以直接使用 `CAST_NONE`；有效输出范围仍然由当前 tile 的 `curN * channelCount` 决定。
+这里的 `Gather` 操作数类型、offset 类型和 `Cast` RoundMode 都必须从
+目标版本对应重载的支持表选择；有效输出范围仍由当前 tile 的
+`curN * channelCount` 决定。
 
 这里的 `offsetBuff` 是 device 端预计算好的 byte offset 表（只需要生成一次），使用Tbuff进行管理，对应生成逻辑：
 
@@ -178,24 +186,23 @@ __aicore__ inline void InitOffsetTable()
 **适用条件** :
 
 - 偏移表具有等差数列的周期性结构
-- baseCount = 16 × C 需满足 Adds 的对齐要求（32 字节，即 baseCount ≥ 8 对 int32）
+- baseCount、地址、mask 和 count 满足目标 `Adds<int32_t>` 重载要求
 - C ≤ 16（小通道 transpose 的典型场景）
 
-**通用模式**：任何具有周期性结构的查找表（offset table、index table 等），都可以用「Scalar 生成基础模式 + Adds 向量扩展」的方式优化，将 Scalar 操作从 O(tileNA × C) 降至 O(16 × C)。
+周期性查找表可以考虑“少量 Scalar 初始化 + Vector 扩展”，但必须先
+验证整数溢出、对齐、尾部和生成成本。上表是一次历史测量，不是其他
+shape 或 SoC 的预期性能。
 
 ***
 
-## 2. API 级硬约束
+## 2. API 约束校准
 
-### 2.1 `Gather` 不直接处理 `uint8`
+### 2.1 Match the exact `Gather` type table
 
-推荐路线是：
-
-```text
-FP32 -> half -> TransDataTo5HD -> Gather(half) -> uint8
-```
-
-不要尝试直接在 `uint8` 上做 gather 抽取。
+The CANN 9.0 Memory vector `Gather` documentation includes `uint8_t` among
+supported types on listed products, so a blanket “Gather cannot process uint8”
+rule is incorrect. Register-vector and Memory-vector Gather overloads have
+different operand combinations; check the exact table and offset type.
 
 ### 2.2 `repeats == 1` 时 stride 必须置 0
 
@@ -204,21 +211,29 @@ uint16_t dstRS = (repeats == 1) ? 0 : 16;
 uint16_t srcRS = (repeats == 1) ? 0 : 1;
 ```
 
-这是小 tile 场景的硬约束，不能省。
+For the CANN 9.0 `TransDataTo5HD` parameter form used here, the documented
+single-repeat case sets repeat strides to zero. Recheck this when changing API
+family or release.
 
-### 2.3 `VECOUT` depth 必须 >= 2
+### 2.3 Separate queue depth from buffer count
 
-即便 `Compute` 逻辑看起来是“算完立刻写”，也不要把 `VECOUT` 队列缩成 1。多 tile 下 CopyOut 与后续 Compute 交错时，单槽位容易卡死流水。
+Do not require `VECOUT depth >= 2`. CANN 9.0 recommends `depth=1` for ordinary
+non-in-place TQue use and does not recommend general `depth >= 2`. Use a larger
+depth only for a verified consecutive enqueue/dequeue pattern. Configure and
+measure double buffering through the applicable `InitBuffer` count and resource
+model.
 
 ### 2.4 GM 读写按目标重载选择 `DataCopy` 或 `DataCopyPad`
 
-输出是 `curN * channelCount` 字节。只要不是严格 32 字节对齐：
+输出是 `curN * channelCount` 字节。若所选写回重载不支持该非对齐长度，
+一种候选路线是使用与目标版本和方向匹配的 `DataCopyPad`：
 
 ```cpp
 DataCopyPad(yGm[gmOffset], outLocal, copyParams);
 ```
 
-不要为了少写一个 `Pad` 路径，引入额外的尾块分支复杂度。
+也可以使用目标 API 明确支持的其他尾部路线。分别验证边界、安全性和
+性能，不要从本案例推导所有写回都必须使用 `DataCopyPad`。
 
 ***
 
@@ -226,8 +241,14 @@ DataCopyPad(yGm[gmOffset], outLocal, copyParams);
 
 | 反模式                                      | 问题                  | 建议替代                                    |
 | ---------------------------------------- | ------------------- | --------------------------------------- |
-| `GetValue / SetValue` 逐元素搬运              | 标量 UB 读写，吞吐极差       | `DataCopy / DataCopyPad + vector route` |
+| hot-path `GetValue / SetValue` loops           | scalar UB access may dominate | measured `DataCopy`/vector alternative |
 | 逐像素 `DataCopyPad(blockLen=channelCount)` | DMA setup 成本远大于有效负载 | 按通道整段搬运，再做 `vnchwconv + Gather`         |
 | 默认套用通用 transpose API                     | 小通道场景下内部开销可能远大于实际计算 | 走专门的小通道路径                               |
 | 直接 `float -> half -> uint8`              | 容易出现量化 off-by-1     | 先 in-place round，再转 half                |
 | 跨 tile 自己管理一次性 event                     | 容易把流水写成一次性同步死锁      | 用 `TQue` 的 `EnQue/DeQue` 管理             |
+
+## Calibration Evidence
+
+- CANN 9.0 `TransDataTo5HD`: https://www.hiascend.com/document/detail/zh/canncommercial/900/API/ascendcopapi/atlasascendc_api_07_0200.html
+- CANN 9.0 Memory vector `Gather`: https://www.hiascend.com/document/detail/zh/canncommercial/900/API/ascendcopapi/atlasascendc_api_07_0092.html
+- CANN 9.0 `TQue` introduction: https://www.hiascend.com/document/detail/zh/canncommercial/900/API/ascendcopapi/atlasascendc_api_07_0137.html

@@ -77,27 +77,18 @@ AscendC::TQue<AscendC::TPosition::VECIN, 1> que;
 pipe->InitBuffer(que, 1, size);  // num=1 单 Buffer
 ```
 
-### TQue Buffer 数量限制
+### TQue Resource Limits
 
-| 产品系列 | eventID 数量 | 最大 TQue 数量 |
-|---------|-------------|---------------|
-| Atlas 训练系列 | 4 | 4 |
-| Atlas 推理系列 AI Core | 8 | 8 |
-| Atlas 推理系列 Vector Core | 8 | 8 |
-| Atlas A2/A3 系列 | 8 | 8 |
+Event and queue resources vary by product, queue position, compiler model, and
+CANN release. `InitBuffer(que, num, size)` with a larger `num` consumes more UB
+and can consume additional queue resources, but it does not establish one
+universal maximum queue count.
 
-**注意**：
-- 不开启 Double Buffer（num=1）：最多可申请 8 个 TQue
-- 开启 Double Buffer（num=2）：每个 TQue 占用 2 个 buffer，最多只能申请 4 个 TQue
-
-```cpp
-// 开启 Double Buffer 时，最多只能申请 4 个 TQue
-pipe->InitBuffer(que0, 2, size);  // ✅
-pipe->InitBuffer(que1, 2, size);  // ✅
-pipe->InitBuffer(que2, 2, size);  // ✅
-pipe->InitBuffer(que3, 2, size);  // ✅
-pipe->InitBuffer(que4, 2, size);  // ❌ 超过限制
-```
+Before increasing `num` or adding queues, check the target TQue documentation,
+compiler diagnostics, total UB allocation, and the actual overlap gained. The
+CANN 9.0 TQue introduction recommends `depth=1` for ordinary non-in-place use
+and does not recommend general `depth >= 2`; use a larger depth only for a
+verified continuous enqueue/dequeue requirement.
 
 ### TQue 正确用法
 
@@ -276,18 +267,20 @@ __aicore__ inline void ProcessBatch()
 ```cpp
 // 从目标 SoC 平台信息或 Tiling 上下文获取可用 UB，不要写死容量。
 uint64_t ubSize = GetTargetUbSize();
-constexpr uint32_t MAX_BLOCK_COUNT = 4095;  // DataCopyPad blockCount 限制
-
 // bytesPerTileRow: double buffer (in*2 + out*2)
 uint32_t bytesPerTileRow = paddedColsT * typeSizeBytes * 4;
 
 // tileRows
 uint32_t tileRows = (ubSize - overheadBytes) / bytesPerTileRow;
-tileRows = std::max(1u, std::min(tileRows, MAX_BLOCK_COUNT));
+tileRows = std::max(1u, tileRows);
 ```
+
+If the selected transfer overload documents a block-count limit, clamp
+`tileRows` to that verified value after the UB calculation. Do not introduce a
+numeric clamp before identifying that overload.
 
 ### 注意事项
 
-1. **tileRows 限制**：DataCopyPad 的 `blockCount` 最大 4095
+1. **tileRows 限制**：示例中的 4095 只适用于已核对到该上限的 `DataCopyPad` 参数形式；目标版本或重载不同时重新查表
 2. **尾核处理**：`startLocalRow >= totalRowsToProcess` 时提前退出
 3. **stride 计算**：UB 侧 stride 单位是 32 字节块，GM 侧是字节

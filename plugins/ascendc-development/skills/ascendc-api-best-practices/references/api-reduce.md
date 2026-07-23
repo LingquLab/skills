@@ -1,259 +1,79 @@
-# Reduce API 使用指南
+# Reduce API Selection and Data Layout
 
-逐行 Reduce 与跨行 Reduce 的 API 选择与使用规范。
+Ascend C exposes multiple Reduce API families. Similar names do not imply the same signature, temporary-buffer type, alignment model, output layout, alias rules, or product support.
 
----
+## Choose the Exact Family
 
-## 目录
+Use the target headers and documentation to distinguish at least:
 
-1. [接口选择](#接口选择)
-2. [Level 2 接口（逐行处理）](#level-2-接口逐行处理)
-3. [Pattern 接口（跨行批量）](#pattern-接口跨行批量)
-4. [常见错误](#常见错误)
-5. [最佳实践](#最佳实践)
+- count-based basic APIs that reduce a bounded element range;
+- high-level `ReducePattern` APIs that describe axes with shape metadata;
+- Register-vector, Memory-vector, and scalar variants;
+- APIs that return only values from variants that also return indices.
 
----
+Do not call one family “Level 2” or “Pattern” and then copy constraints to every same-name overload. Record the exact signature before sizing buffers.
 
-## 接口选择
+## Count-Based Workflow
 
-| 场景 | 接口 | 参数 | 对齐要求 | 典型用途 |
-|-----|------|------|----------|---------|
-| 逐行独立处理 | Level 2 | `(dst, src, tmp, count)` | **无** | Softmax, LayerNorm |
-| 跨行批量处理 | Pattern | **两种形式**（见下文） | 32 字节 | ReduceSum axis=-1 |
+For a row-wise reduction:
 
-**选择原则**：
-- 逐行独立计算 → **Level 2 接口**（更简单，无对齐要求）
-- 需要跨行 Reduce → **Pattern 接口**（性能更高，推荐形式1）
+1. Keep the logical row length separate from its allocated or DMA-padded stride.
+2. Compute the row address from the allocated stride.
+3. Pass the element count expected by the selected overload, not a byte count.
+4. Allocate the destination and temporary tensor with the types and sizes documented for that overload.
+5. Verify whether value/index output, source reuse, or aliasing changes those requirements.
 
----
+Schematic layout:
 
-## Level 2 接口（逐行处理）
-
-### API 签名
-
-```cpp
-AscendC::ReduceMax<T>(dst, src, tmpBuffer, count, calIndex);
-AscendC::ReduceSum<T, isSetMask=true>(dst, src, tmpBuffer, count);
-AscendC::ReduceMin<T>(dst, src, tmpBuffer, count, calIndex);
+```text
+row_start = row_index * allocated_row_stride_elements
+reduce(dst, src[row_start], temporary, logical_row_elements, ...)
 ```
 
-**参数**：
-- `dst`：输出 LocalTensor（1 个元素）
-- `src`：输入 LocalTensor（count 个元素）
-- `tmpBuffer`：临时 buffer（**类型必须与 T 相同**）
-- `count`：元素个数（int32_t）
-- `calIndex`：是否计算索引（bool，默认 false）
+This avoids the common error of using a logical row length as the UB row stride. It does not assert that every Reduce API accepts an unaligned logical count.
 
-### tmpBuffer 类型要求
+## ReducePattern Workflow
 
-**tmpBuffer 类型必须与 dst/src 相同**：
+For a high-level pattern call:
 
-```cpp
-// ❌ 错误：tmpBuffer 类型不匹配
-AscendC::LocalTensor<uint8_t> tmpBuffer = tmpBuf.Get<uint8_t>();
-AscendC::ReduceMax(rowTmp, src, tmpBuffer, count);  // 编译错误！
+1. Select a `ReducePattern` actually supported by that API and release.
+2. Pass the real logical shape representation expected by the target signature.
+3. Set `isSrcInnerPad` from whether the innermost data being reduced is 32-byte aligned; do not hard-code it by SoC.
+4. Keep `isReuseSource` consistent with the intended alias plan.
+5. Query the Host-side maximum/minimum temporary size with identical shape, type, pattern, alignment, and reuse values.
+6. Pass a selected size through Tiling and allocate no less than the documented minimum.
 
-// ✅ 正确：tmpBuffer 类型必须与 T 相同
-AscendC::LocalTensor<T> reduceTmp = reduceBuf.Get<T>();
-AscendC::ReduceMax(rowTmp, src, reduceTmp, count);
-```
+See [api-reduce-pattern.md](api-reduce-pattern.md) for the CANN 9.0-calibrated Host helper and evidence links.
 
-### 完整示例：Softmax 逐行处理
+## Padding and Tails
 
-```cpp
-__aicore__ inline void ProcessRow(
-    AscendC::LocalTensor<T>& xLocal,
-    AscendC::LocalTensor<T>& yLocal,
-    uint32_t rowIdx)
-{
-    uint32_t rowOffset = rowIdx * rLengthAlign;  // ⚠️ 用 rLengthAlign
+Padding introduced for DMA storage and `isSrcInnerPad` are related but not interchangeable:
 
-    AscendC::LocalTensor<T> rowTmp = rowBuf.Get<T>();
-    AscendC::LocalTensor<T> reduceTmp = reduceBuf.Get<T>();
+- DMA padding controls how data is stored and copied.
+- `srcShape` describes the shape expected by the selected Reduce API.
+- `isSrcInnerPad` describes alignment of the actual innermost-axis data.
+- Padding values must be neutral for the reduction when padded elements participate.
 
-    // 1. ReduceMax（count = rLength，有效数据个数）
-    AscendC::ReduceMax<T>(rowTmp, xLocal[rowOffset], reduceTmp,
-        static_cast<int32_t>(rLength), false);
+For maximum, minimum, sum, and index-producing reductions, the correct neutral value and tie behavior differ. Confirm whether the API ignores padding or computes over it before choosing a fill value.
 
-    T maxVal = rowTmp.GetValue(0);
-    AscendC::Duplicate<T>(rowTmp, maxVal, rLength);
-    AscendC::Sub<T>(xLocal[rowOffset], xLocal[rowOffset], rowTmp, rLength);
+## Accuracy and Special Values
 
-    // 2. Exp
-    AscendC::Exp<T>(xLocal[rowOffset], xLocal[rowOffset], rLength);
+- Check accumulation or intermediate precision against the operator tolerance.
+- Verify NaN propagation, infinities, signed zero, empty axes, and tie/index semantics when relevant.
+- Do not assume FP32 promotion is always required or always available.
+- Compare with a reference implementation over boundary and representative shapes.
 
-    // 3. ReduceSum
-    AscendC::ReduceSum<T, true>(rowTmp, xLocal[rowOffset], reduceTmp,
-        static_cast<int32_t>(rLength));
+## Review Checklist
 
-    T sumVal = rowTmp.GetValue(0);
-    AscendC::Duplicate<T>(rowTmp, sumVal, rLength);
-    AscendC::Div<T>(yLocal[rowOffset], xLocal[rowOffset], rowTmp, rLength);
-}
-```
+- Exact API family, signature, product, and CANN release identified.
+- Logical counts, byte counts, and allocated strides are not mixed.
+- Source, destination, and temporary tensor types and sizes match the overload.
+- Alias and source-reuse rules are verified, not inferred from another overload.
+- Host temporary-size query matches the Kernel call.
+- Full tiles, last tile, empty input, and non-aligned tails stay in bounds.
+- Output layout and optional index output match downstream consumers.
+- Accuracy and performance claims have target-specific evidence.
 
----
+## Source Discovery
 
-## Pattern 接口（跨行批量）
-
-Pattern 接口有**两种重载形式**，详见 [api-reduce-pattern.md](api-reduce-pattern.md)。
-
-### 快速入门
-
-```cpp
-AscendC::LocalTensor<float> dstLocal = outQueue.AllocTensor<float>();
-AscendC::LocalTensor<float> srcLocal = inQueue.DeQue<float>();
-AscendC::LocalTensor<uint8_t> tmpLocal = tmpBuf.Get<uint8_t>();
-
-uint32_t srcShape[] = {rows, alignedCols};  // alignedCols 必须 32 字节对齐
-
-// 推荐使用形式1：显式传入 tmpLocal
-AscendC::ReduceMax<float, AscendC::Pattern::Reduce::AR, true>(
-    dstLocal, srcLocal, tmpLocal, srcShape, true);
-```
-
-### 关键要点
-
-| 要点 | 说明 |
-|-----|------|
-| **对齐要求** | `alignedCols` 必须 32 字节对齐 |
-| **Pattern 类型** | `Pattern::Reduce::AR`（沿列方向）、`Pattern::Reduce::RA`（沿行方向） |
-| **推荐形式** | 形式1（显式传入 sharedTmpBuffer） |
-| **临时空间** | 两种形式都需要预留，详见 [api-reduce-pattern.md](api-reduce-pattern.md) |
-
-### 非对齐数据处理
-
-```cpp
-// ✅ 方案1：改用 Level 2 接口（无对齐要求）
-AscendC::ReduceMax<T>(dst, src, tmp, rLength, false);
-
-// ✅ 方案2：用 DataCopyPad 填充到对齐
-uint32_t alignedCols = ((rLength * sizeof(T) + 31) / 32) * 32 / sizeof(T);
-AscendC::DataCopyPadExtParams<T> padParams;
-padParams.isPad = true;
-padParams.rightPadding = alignedCols - rLength;
-DataCopyPad(dstLocal, srcGm, copyParams, padParams);
-
-uint32_t srcShape[] = {1, alignedCols};
-AscendC::ReduceMax<T, AscendC::Pattern::Reduce::AR, true>(dst, src, srcShape, true);
-```
-
----
-
-## 常见错误
-
-### 错误1：tmpBuffer 类型不匹配
-
-```cpp
-// ❌ 错误
-AscendC::LocalTensor<uint8_t> tmpBuffer = tmpBuf.Get<uint8_t>();
-AscendC::ReduceMax(rowTmp, src, tmpBuffer, count);
-
-// ✅ 正确
-AscendC::LocalTensor<T> reduceTmp = reduceBuf.Get<T>();
-AscendC::ReduceMax(rowTmp, src, reduceTmp, count);
-```
-
-### 错误2：rowOffset 用 rLength 而非 rLengthAlign
-
-```cpp
-// ❌ 错误：单行通过，多行失败
-uint32_t rowOffset = rowIdx * rLength;
-
-// ✅ 正确
-uint32_t rowOffset = rowIdx * rLengthAlign;
-```
-
-### 错误3：非对齐数据用 Pattern 接口
-
-```cpp
-// ❌ 错误：rLength=13，非 32 字节对齐
-uint32_t srcShape[] = {1, rLength};
-AscendC::ReduceMax<T, AscendC::Pattern::Reduce::AR, true>(dst, src, srcShape, false);
-
-// ✅ 方案1：改用 Level 2 接口
-AscendC::ReduceMax<T>(dst, src, tmp, rLength, false);
-
-// ✅ 方案2：用 DataCopyPad 填充到对齐（见上文）
-```
-
-### 错误4：Reduce API count 传 rLengthAlign
-
-```cpp
-// ❌ 错误：count 应该是有效数据个数
-AscendC::ReduceMax(rowTmp, src, tmp, rLengthAlign, false);
-
-// ✅ 正确：count 只传有效数据个数
-AscendC::ReduceMax(rowTmp, src, tmp, rLength, false);
-```
-
-### 错误5：Pattern 接口形式2 忘记预留临时空间
-
-```cpp
-// ❌ 错误：运行时 UB 越界或结果错误
-AscendC::ReduceMax<float, AscendC::Pattern::Reduce::AR, true>(dst, src, srcShape, true);
-
-// ✅ 方案1：使用形式1（推荐）
-AscendC::LocalTensor<uint8_t> tmpLocal = tmpBuf.Get<uint8_t>();
-AscendC::ReduceMax<float, AscendC::Pattern::Reduce::AR, true>(dst, src, tmpLocal, srcShape, true);
-
-// ✅ 方案2：预留临时空间（详见 api-reduce-pattern.md）
-```
-
----
-
-## 最佳实践
-
-### 参数对照表
-
-| 参数位置 | 用 rLength | 用 rLengthAlign |
-|---------|-----------|-----------------|
-| DataCopyPad blockLen | ✓ | ✗ |
-| Reduce API count | ✓ | ✗ |
-| Sub/Exp/Div count | ✓ | ✗ |
-| UB rowOffset | ✗ | ✓ |
-| Buffer 大小计算 | ✗ | ✓ |
-
-### 决策流程
-
-```
-需要 Reduce 操作？
-    │
-    ├─ 逐行独立处理（Softmax/LayerNorm）
-    │     └─→ Level 2 接口
-    │           - 无对齐要求
-    │           - count = rLength
-    │
-    └─ 跨行批量 Reduce
-          └─→ Pattern 接口（形式1 推荐）
-                - 需要 32 字节对齐
-                - 显式管理 tmp buffer
-```
-
-### Buffer 分配
-
-```cpp
-uint32_t tileSize = rowsPerLoop * rLengthAlign * sizeof(T);
-uint32_t rowBufSize = rLengthAlign * sizeof(T);
-uint32_t reduceBufSize = 32 * 1024;
-
-pipe->InitBuffer(inQueueX, 1, tileSize);
-pipe->InitBuffer(outQueueY, 1, tileSize);
-pipe->InitBuffer(rowBuf, rowBufSize);
-pipe->InitBuffer(reduceBuf, reduceBufSize);
-```
-
----
-
-## API 文档查阅优先级
-
-1. ⭐⭐⭐ **官方 API 文档**：`asc-devkit/docs/api/context/ReduceMax.md`
-2. ⭐⭐⭐ **官方示例代码**：`asc-devkit/examples/03_libraries/05_reduce/`
-3. Pattern 接口详解：[api-reduce-pattern.md](api-reduce-pattern.md)
-
----
-
-## 参考示例
-
-- `asc-devkit/examples/03_libraries/05_reduce/reducemax/reducemax.asc` - Pattern 接口示例
-- `asc-devkit/docs/api/context/ReduceMax.md` - 官方 API 文档
+Use `$ascendc-docs-search` for `ReduceMax`, `ReduceMin`, `ReduceSum`, or the relevant API plus the target release. Prefer installed headers and examples when they match the actual toolchain.

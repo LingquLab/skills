@@ -43,7 +43,7 @@ The plugin contains five independently triggered skills:
 | `ascendc-env-check` | Performing read-only CANN environment and NPU visibility diagnostics |
 | `cann-env-setup` | Planning or carrying out a guarded, version-matched CANN installation or repair |
 
-These skills are adapted from TileXR's Claude skills at source commit `1e2619e793b5894a1aec2d7d6897dbe5f7c501c0`. Claude-specific tool calls, fixed environment assumptions, destructive diagnostic commands, and the duplicate `commit-push-pr` skill are intentionally not shipped. The documentation search retains scripted access to Huawei's official search endpoint and pages, consolidated into a dependency-free client. See the [migration audit](docs/specs/2026-07-23-ascendc-development-migration.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
+These skills are adapted from TileXR's Claude skills at source commit `1e2619e793b5894a1aec2d7d6897dbe5f7c501c0`. Claude-specific tool calls, fixed environment assumptions, destructive diagnostic commands, and the duplicate `commit-push-pr` skill are intentionally not shipped. Useful online workflows remain scripted: one dependency-free client searches and fetches Huawei's official documentation, and another obtains public GitCode PR diffs through bounded shallow fetches. See the [migration audit](docs/specs/2026-07-23-ascendc-development-migration.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Superpowers Neo
 

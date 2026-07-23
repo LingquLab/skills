@@ -9,7 +9,7 @@
 1. [核心约束](#核心约束)
 2. [如何确认参数范围](#如何确认参数范围)
 3. [问题场景与解决方案](#问题场景与解决方案)
-4. [受影响的 API](#受影响的-api)
+4. [Commonly Affected APIs](#commonly-affected-apis)
 
 ---
 
@@ -116,7 +116,10 @@ void SubWithBroadcast(
 
 ---
 
-## 受影响的 API
+## Commonly Affected APIs
+
+The table is a routing list for overloads that commonly expose an 8-bit repeat
+field. It is not proof that every overload of every named API uses `uint8_t`.
 
 | API 类别 | API 名称 | 参数限制 |
 |---------|---------|---------|
@@ -136,9 +139,11 @@ void SubWithBroadcast(
 | **Kernel 实现** | 如需超过限制，实现分批处理逻辑 |
 | **调试** | 若 R=256 时出错，优先检查 repeatTime 溢出 |
 
+Also verify repeat stride fields independently; a valid `repeatTime` does not
+prevent an 8-bit stride field from overflowing.
+
 ---
 
 ## 文档参考
 
-- Sub API：`asc-devkit/docs/api/context/Sub.md`
-- 其他 Vector API 文档路径相同，搜索对应 API 名称
+- Locate the exact target-release `Sub` or other Vector API page with `$ascendc-docs-search`.

@@ -27,9 +27,15 @@ Apply only the sections relevant to the changed code. Project policy and version
 ## Operator Integration
 
 - Trace attributes from framework context through Tiling data to Kernel use.
+- Check descriptor and attribute access against the target framework lifecycle and IR schema: validate nullable or fallible results when the selected API permits failure, and require the retrieved type to match the registered attribute type. Do not reject `GetInputTensor`, `CompileInfo`, or another access path by name without a version-matched contract that excludes it.
 - Verify shape inference, empty tensors, scalar tensors, broadcast rules, and dynamic shapes.
 - Confirm workspace and temporary-buffer sizes are calculated with the same layout the Kernel uses.
 - Check launch dimensions and per-core partitioning for gaps, overlaps, and imbalance.
+- Widen shape products and GM offset arithmetic before an operation can exceed the current operand type; require `int64_t` or another wider type only when the supported size range needs it.
+- For floating-point operators, test `NaN`, infinities, signed zero, and range boundaries when the operator contract distinguishes or promises behavior for them.
+- For atomic accumulation, prove the destination has the algorithm's required initial value, the UB source is fully initialized for the written range, and the atomic mode is disabled at the documented boundary. Do not require blanket zeroing when overwrite semantics or prior initialization already establishes the value.
+- For fused communication or multi-core stages, require synchronization only across real producer-consumer dependencies and verify every participating path reaches the matching protocol; do not prescribe a global barrier without that dependency analysis.
+- Treat `thread_local` in a dynamically loaded library as a lifecycle finding only when the library can unload while owning threads, objects, destructors, or later accesses remain live.
 - Verify error codes and logging preserve the actionable failure boundary without exposing sensitive data.
 - Separate compile support, simulator support, and real-device behavior.
 

@@ -1,6 +1,8 @@
-# 流水线同步机制指南
+# Pipeline Synchronization Guide
 
-MTE 与 Vector 同步的核心机制。
+This is a TQue-based MTE/Vector pattern. Confirm the selected API's documented
+execution and event model; do not assume every same-name data movement call has
+identical ordering semantics.
 
 ---
 
@@ -16,7 +18,8 @@ MTE 与 Vector 同步的核心机制。
 
 ## 核心问题
 
-**DataCopy/DataCopyPad 是异步 DMA 操作，直接在搬运后的数据上做 Vector 计算可能读到未完成的数据！**
+For asynchronous data movement, directly consuming or freeing a buffer without
+the required dependency can race the transfer.
 
 ### 硬件架构
 
@@ -66,7 +69,7 @@ outQueueY.FreeTensor(yOut);
 **关键点**：
 - `EnQue(xLocal)` 标记 buffer 数据就绪
 - `DeQue<float>()` 阻塞等待数据就绪
-- DeQue 返回后，数据一定已经搬运完成
+- For this documented queue path, `DeQue` establishes the dependency needed by the consumer
 
 ### 方案二：PipeBarrier 手动同步
 
@@ -84,7 +87,9 @@ AscendC::DataCopyPad(yGm[gmOffset], yLocal, copyOutParams);
 AscendC::PipeBarrier<PIPE_ALL>();          // 等待 MTE3 完成
 ```
 
-**缺点**：性能开销大（全流水线停顿），不推荐用于高性能场景
+**Tradeoff**: a broad barrier can serialize more work than necessary. Measure it
+against a correctly scoped queue/event dependency before reporting a performance
+regression.
 
 ---
 
@@ -93,9 +98,9 @@ AscendC::PipeBarrier<PIPE_ALL>();          // 等待 MTE3 完成
 | 特性 | EnQue/DeQue | PipeBarrier |
 |-----|-------------|-------------|
 | 同步粒度 | buffer 级别 | 全流水线 |
-| 性能 | 高（支持并行） | 低（串行等待） |
+| 性能 potential | can overlap work | may serialize more work |
 | 代码复杂度 | 需要队列管理 | 简单直接 |
-| 推荐程度 | ⭐⭐⭐⭐⭐ | ⭐⭐（仅调试用） |
+| Selection | normal queue pipeline candidate | debugging or documented dependency candidate |
 
 ### EnQue/DeQue 的双重作用
 
@@ -178,13 +183,15 @@ PipeBarrier<PIPE_ALL>();  // 临时加，如果结果正确说明是同步问题
 Compute(x);
 ```
 
-**如果 PipeBarrier 能解决问题，说明是同步问题** → 修复方案：改为 EnQue/DeQue 机制
+If a barrier changes the result, synchronization is a strong hypothesis, not
+complete proof. Verify initialization, bounds, and the exact dependency, then
+replace the broad diagnostic barrier with the narrow documented mechanism.
 
 ### 常见误区
 
 | 误区 | 正确理解 |
 |-----|---------|
 | AllocTensor 后数据就可用 | AllocTensor 只分配内存，不等待搬运 |
-| DataCopy 是同步的 | DataCopy 是异步 DMA，立即返回 |
-| 不用 EnQue/DeQue 也能正常工作 | 必须用 EnQue/DeQue 或 PipeBarrier 同步 |
-| PipeBarrier 性能好 | PipeBarrier 是全流水线停顿，性能差 |
+| Data movement is always synchronous | inspect the selected overload's execution model |
+| Every path must use EnQue/DeQue | use the dependency mechanism required by the chosen queue/event model |
+| A barrier is automatically slow | measure its actual serialization on the target path |

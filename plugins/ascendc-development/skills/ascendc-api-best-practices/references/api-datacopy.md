@@ -1,287 +1,133 @@
-# DataCopy / DataCopyPad 使用指南
+# DataCopy / DataCopyPad Selection
 
-GM ↔ UB 数据搬运的模式参考。接口参数和对齐要求按 CANN 版本、SoC、搬运方向和重载变化；使用前必须核对目标版本文档。
+GM, UB, and other local-memory transfers expose multiple API families. Parameter
+types, units, padding behavior, supported directions, types, and products vary
+by CANN release, SoC, and overload. Record the exact declaration before writing
+Tiling or Kernel code.
 
----
+## Select the Exact Declaration
 
-## 目录
+1. Identify source and destination memory positions and the execution pipeline.
+2. Enumerate `DataCopy` and `DataCopyPad` declarations that match that direction.
+3. Record the parameter structure (`DataCopyParams`, `DataCopyExtParams`, or
+   another target-specific form) and every field's unit and range.
+4. Check supported types, alignment, padding, stride, block-count, and alias
+   restrictions in the version-matched page or implementation checks.
+5. Derive GM and local allocation bounds for full blocks, the last block, and
+   every padded lane before choosing the call.
 
-1. [选择规则](#选择规则)
-2. [32 字节对齐要求](#32-字节对齐要求)
-3. [DataCopyPad 参数详解](#datacopypad-参数详解)
-4. [使用场景示例](#使用场景示例)
-5. [stride 参数详解](#stride-参数详解)
-6. [常见错误与调试](#常见错误与调试)
+Do not select `DataCopyPad` solely because a logical byte count is unaligned.
+First confirm that a matching overload exists and that its padding semantics fit
+the downstream computation.
 
----
+## CANN 9.1 Header Calibration
 
-## 选择规则
-
-**原则：先确认搬运方向、重载和对齐，再选择 API**
-
-| 场景 | API | 原因 |
-|-----|-----|------|
-| **目标重载支持的非对齐场景** | `DataCopyPad` | 显式处理尾部和 padding |
-| **满足目标重载全部约束的对齐场景** | `DataCopy` 或 `DataCopyPad` | 按目标平台和实测选择 |
-
-### 单元素 GM 访问的性能风险
-
-| API | 风险 | 典型用途 |
-|-----|------|---------|
-| `GlobalTensor::SetValue(idx, val)` | 热路径逐元素访问通常吞吐较低 | 调试、极少量标量或已验证场景 |
-| `GlobalTensor::GetValue(idx)` | 热路径逐元素访问通常吞吐较低 | 调试、极少量标量或已验证场景 |
+The installed CANN 9.1 interface used for migration calibration declares
+different GM-to-UB and UB-to-GM call shapes:
 
 ```cpp
-// 性能风险：热路径中逐元素访问 GM
-for (uint32_t i = 0; i < size; i++) {
-    xGm.SetValue(i, value);    // 通常效率较低
-    T val = xGm.GetValue(i);   // 通常效率较低
-}
+template <typename T>
+__aicore__ inline void DataCopyPad(
+    const LocalTensor<T>& dst,
+    const GlobalTensor<T>& src,
+    const DataCopyParams& dataCopyParams,
+    const DataCopyPadParams& padParams);
 
-// ✅ 正确：使用 DataCopyPad 批量搬运
-AscendC::DataCopyPad(xLocal, xGm[offset], copyParams, padParams);
-
-// ✅ 允许：调试时单点验证
-AscendC::printf("debug: xGm[0]=%f\n", xGm.GetValue(0));  // 仅调试
+template <typename T>
+__aicore__ inline void DataCopyPad(
+    const GlobalTensor<T>& dst,
+    const LocalTensor<T>& src,
+    const DataCopyParams& dataCopyParams);
 ```
 
-**为什么非对齐场景常用 DataCopyPad？**
+The same header also provides `DataCopyExtParams` forms. In this release, the
+GM-to-UB form receives a separate padding structure while the corresponding
+UB-to-GM form does not. This is evidence for these CANN 9.1 declarations, not a
+version-independent promise.
 
-1. 自动处理非对齐，无需手动判断
-2. CopyIn 和 CopyOut 都适用
-3. Tiling 设计时可能产生非对齐的 tile 大小
-4. 对齐场景下的性能差异需要在目标 SoC 上测量，不能预设为可忽略
-
----
-
-## 32 字节对齐要求
-
-下表是常见 32 字节块约束的换算示例，不是所有 `DataCopy` 重载的统一契约。以目标版本对应重载的 Restriction 和参数单位为准。
-
-| 数据类型 | 对齐元素数 | 最小对齐字节数 |
-|---------|-----------|--------------|
-| half (2 bytes) | 16 | 32 |
-| float (4 bytes) | 8 | 32 |
-| int32_t (4 bytes) | 8 | 32 |
-
----
-
-## DataCopyPad 参数详解
-
-### isPad 参数
-
-| isPad | 含义 |
-|-------|------|
-| `false` | 框架自动填充，用户不指定填充值 |
-| `true` | 用用户指定的 `paddingValue` 填充 |
-
-### blockLen 非对齐时的填充行为
-
-**GM → UB（CopyIn）**：
-
-| 条件 | isPad | dummy 填充值 |
-|-----|-------|-------------|
-| leftPadding=0, rightPadding=0 | false | **第一个元素值** |
-| leftPadding=0, rightPadding=0 | true | paddingValue |
-| leftPadding≠0 或 rightPadding≠0 | false | 随机值 |
-| leftPadding≠0 或 rightPadding≠0 | true | paddingValue |
-
-**UB → GM（CopyOut）**：
-- 框架自动处理非对齐
-- 搬到 GM 时自动丢弃 dummy
-
----
-
-## 使用场景示例
-
-### 场景1：非对齐 CopyIn，不关心填充值
+The calibrated `DataCopyPadParams` layout is:
 
 ```cpp
-// cols=5 (FP32)，blockLen=20字节，非对齐
-// 后续计算只处理 cols 个元素，dummy 被忽略
-AscendC::DataCopyParams copyParams{1, cols * sizeof(float), 0, 0};
-AscendC::DataCopyPadParams padParams{false, 0, 0, 0};
-AscendC::DataCopyPad(xLocal, xGm, copyParams, padParams);
-
-// 后续计算只处理 cols 个元素
-AscendC::ReduceMax(tmpReduce, xLocal, tmpReduce, cols, false);
+struct DataCopyPadParams {
+    bool isPad = false;
+    uint8_t leftPadding = 0;
+    uint8_t rightPadding = 0;
+    uint64_t paddingValue = 0;
+};
 ```
 
-### 场景2：非对齐 CopyIn，指定填充值
+Field presence does not establish field semantics for another overload. Read
+the target documentation and implementation checks before deciding which lanes
+are initialized, which value is legal, or whether padded lanes may be consumed.
+
+## Schematic Direction Patterns
+
+After constructing parameters from the target declaration:
 
 ```cpp
-uint32_t padElements = paddedCols - cols;
-AscendC::DataCopyPadExtParams<float> padParams{true, 0, padElements, 0.0f};
-AscendC::DataCopyExtParams copyParams{1, cols * sizeof(float), 0, 0, 0};
-AscendC::DataCopyPad(xLocal, xGm, copyParams, padParams);
+// GM -> UB form that exposes explicit padding parameters.
+DataCopyPad(localDst, globalSrc, copyParams, padParams);
+
+// UB -> GM form in the calibrated CANN 9.1 interface.
+DataCopyPad(globalDst, localSrc, copyParams);
 ```
 
-### 场景3：非对齐 CopyOut
+These calls intentionally omit numeric initializers. Copying a field list or
+stride constant from another direction or parameter structure is not safe.
 
-```cpp
-// CopyOut 自动处理非对齐，搬到 GM 时丢弃 dummy
-AscendC::DataCopyParams copyParams{1, cols * sizeof(float), 0, 0};
-AscendC::DataCopyPad(yGm, yLocal, copyParams);
-```
+## Layout and Bounds
 
-### 完整示例：多行批量搬运
+Keep these quantities distinct:
 
-```cpp
-__aicore__ inline void CopyInBatch(uint32_t startLocalRow, uint32_t rowsThisTile)
-{
-    LocalTensor<T> xLocal = inQueueX.AllocTensor<T>();
+- logical elements used by the operator;
+- bytes transferred by each block;
+- allocated GM span;
+- allocated local-memory row stride;
+- padding lanes that the selected overload may write;
+- source and destination stride units;
+- the parameter field widths that bound block and repeat counts.
 
-    AscendC::DataCopyExtParams copyParams;
-    copyParams.blockCount = rowsThisTile;
-    copyParams.blockLen = cols * sizeof(T);
-    copyParams.srcStride = 0;
-    copyParams.dstStride = 0;
+For a multi-row transfer, prove both the start of the last row and the end of
+its transferred or padded span are within allocation. When downstream vector or
+Reduce code can read padded lanes, initialize them to a value that is neutral
+for that exact computation; otherwise restrict the compute count so those lanes
+are never observed.
 
-    AscendC::DataCopyPadExtParams<T> padParams;
-    padParams.isPad = false;
-    padParams.leftPadding = 0;
-    padParams.rightPadding = paddedColsT - cols;
-    padParams.paddingValue = 0;
+## Synchronization and Lifetime
 
-    AscendC::DataCopyPad(xLocal, xGm[startLocalRow * cols], copyParams, padParams);
-    inQueueX.EnQue(xLocal);
-}
-```
+- Match `AllocTensor`, `EnQue`, `DeQue`, and `FreeTensor` to the real queue path.
+- Verify ordering between MTE and vector pipelines using the target queue/event
+  model; the transfer function name alone does not prove synchronization.
+- Keep input and output directions separate during diagnosis. A working CopyIn
+  does not prove that CopyOut uses compatible units or tail behavior.
 
-### 场景4：逐行独立处理模式（Softmax/LayerNorm 推荐）
+## Diagnose a Suspected Tail Defect
 
-**适用场景**：Softmax / LayerNorm 等逐行独立计算的算子，不需要跨行 Reduce。
+1. Reproduce with aligned and minimally unaligned logical lengths.
+2. Reduce the path to CopyIn followed by CopyOut where that is semantically
+   valid, while preserving the real allocations and parameter structures.
+3. Compare the exact overloads and field units for both directions.
+4. Check the last block's GM and local spans, including any documented padding.
+5. Inspect padded lanes only when the target contract defines their value.
+6. Run a target-version compile, then a bounded hardware test when runtime proof
+   is required.
 
-**核心要点**：blockCount 模式 + UB 对齐存储
+A historical 16-byte failure from one `DataCopy` form is not proof that all
+16-byte `DataCopy` calls are invalid or that every `DataCopyPad` form is a valid
+replacement.
 
-```cpp
-// ========== Tiling 参数 ==========
-uint32_t rLength = 13;                           // 有效数据个数
-uint32_t rLengthAlign = (rLength + 7) / 8 * 8;   // 对齐到 8 元素（FP32 下 32 字节）
+## Performance
 
-// ========== 数据搬运 ==========
-AscendC::DataCopyPad(xLocal, xGm[offset],
-    {static_cast<uint16_t>(rows),           // blockCount: 行数
-     static_cast<uint32_t>(rLength * sizeof(T)), // blockLen: 有效数据长度（非对齐！）
-     0, 0},                                  // stride: 连续存储
-    {false, 0, 0, 0});                       // padParams: 自动处理
+Per-element `GlobalTensor::GetValue` or `SetValue` in a material hot path can be
+a performance risk, but replacing it with DMA is a target- and workload-specific
+decision. Measure transfer setup, padding work, synchronization, occupancy, and
+tail frequency on the target device before making a speedup claim.
 
-inQueueX.EnQue(xLocal);
-auto xIn = inQueueX.DeQue<T>();
+## Evidence
 
-// ========== 逐行处理 ==========
-for (uint32_t row = 0; row < rows; row++) {
-    // 关键：UB 偏移用 rLengthAlign，不是 rLength！
-    uint32_t rowOffset = row * rLengthAlign;
-
-    // Reduce API 只传 rLength（有效数据个数）
-    AscendC::ReduceMax<T>(rowTmp, xIn[rowOffset], reduceTmp,
-        static_cast<int32_t>(rLength), false);
-    // ... Sub, Exp, ReduceSum, Div
-}
-
-// ========== 写回 GM ==========
-AscendC::DataCopyPad(yGm[offset], yOut,
-    {static_cast<uint16_t>(rows), static_cast<uint32_t>(rLength * sizeof(T)), 0, 0, 0});
-```
-
-**关键对照表**：
-
-| 参数位置 | 用 rLength | 用 rLengthAlign |
-|---------|-----------|-----------------|
-| DataCopyPad blockLen | ✓ | ✗ |
-| Reduce API count | ✓ | ✗ |
-| Sub/Exp/Div count | ✓ | ✗ |
-| UB rowOffset | ✗ | ✓ |
-| Buffer 大小 | ✗ | ✓ |
-
-**UB 数据布局示意**：
-
-```
-GM（连续存储）:  [row0: 13元素][row1: 13元素][row2: 13元素]...
-                         ↓ DataCopyPad blockCount 模式
-UB（对齐存储）:  [row0: 13+3=16][row1: 13+3=16][row2: 13+3=16]...
-                         ↑
-                  每行 padding 到 8 元素对齐
-```
-
----
-
-## stride 参数详解
-
-**stride 参数单位取决于操作数位置**：
-
-| 操作数位置 | stride 单位 | 说明 |
-|-----------|------------|------|
-| GlobalTensor (GM) | **字节** | 相邻数据块的字节间隔 |
-| LocalTensor (UB) | **dataBlock (32字节)** | 相邻数据块的 32字节块间隔 |
-
-**stride 含义**：相邻数据块之间的间隔（前一块尾部到后一块头部的距离）
-
-### UB → GM 多行搬运（CopyOut）
-
-```cpp
-// UB 中每行: [cols 有效数据][padElements padding]
-// 相邻行间隔 = paddedColsT - cols 个元素
-copyParams.blockCount = rowsThisTile;
-copyParams.blockLen = cols * sizeof(T);
-copyParams.srcStride = (paddedColsT - cols) * sizeof(T) / 32;  // UB stride 单位: 32字节
-copyParams.dstStride = 0;  // GM stride 单位: 字节
-
-AscendC::DataCopyPad(yGm, yLocal, copyParams);
-```
-
-### 常见错误
-
-```cpp
-// ❌ 错误：srcStride 理解为行长度
-copyParams.srcStride = paddedColsT * sizeof(T) / 32;  // 这会导致输出错位
-
-// ✅ 正确：srcStride 是间隔
-copyParams.srcStride = (paddedColsT - cols) * sizeof(T) / 32;
-```
-
----
-
-## 常见错误与调试
-
-### 错误1：CopyIn/CopyOut 非对齐数据用 DataCopy
-
-```cpp
-// ❌ 错误
-AscendC::DataCopy(xLocal, xGm, 4);  // cols=4 (16 bytes)，数据错误
-
-// ✅ 正确
-AscendC::DataCopyPad(xLocal, xGm, copyParams, padParams);
-```
-
-### 错误2：CopyIn 用 DataCopyPad，CopyOut 用 DataCopy
-
-```cpp
-// ❌ 错误：CopyIn 和 CopyOut 都需要处理非对齐
-AscendC::DataCopyPad(xLocal, xGm, copyParams, padParams);
-AscendC::DataCopy(yGm, yLocal, 4);  // 输出错误
-
-// ✅ 正确：两边都用 DataCopyPad
-AscendC::DataCopyPad(xLocal, xGm, copyParams, padParams);
-AscendC::DataCopyPad(yGm, yLocal, copyParams);
-```
-
-### 调试步骤
-
-遇到数据错误时：
-
-1. **分别验证 CopyIn 和 CopyOut**
-   - 用 "CopyIn → CopyOut" 测试搬运是否正确
-2. **检查数据量是否 32 字节对齐**
-3. **非对齐场景：CopyIn 和 CopyOut 都用 DataCopyPad**
-
-### 实战案例：SoftmaxV5
-
-**问题**：FP32 cols=4,5,6,7 时结果错误，cols=8 正常
-
-**根因**：
-1. CopyIn 用 DataCopyPad 但 isPad=false（填充随机值）
-2. CopyOut 用 DataCopy 处理非对齐输出
-
-**解决**：CopyIn 和 CopyOut 都用 DataCopyPad
+- CANN 9.1 installed header:
+  `aarch64-linux/ascendc/include/basic_api/interface/kernel_operator_data_copy_intf.h`
+- CANN 9.1 installed parameter definitions:
+  `aarch64-linux/ascendc/include/basic_api/interface/kernel_struct_data_copy.h`
+- For another release or product, locate the exact declaration and official page
+  with `$ascendc-docs-search`.

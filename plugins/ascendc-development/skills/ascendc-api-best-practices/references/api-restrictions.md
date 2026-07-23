@@ -10,56 +10,55 @@
 
 **原因**：许多 AI Core Kernel 编译模式不提供完整 C++ 标准库；可用范围以目标编译器和头文件为准。
 
-**触发场景**：Kernel 数学计算和比较操作
+**触发场景**：目标 Kernel 编译模式拒绝某个标准库头文件或调用
 
-**常见替代关系**：
+**候选替代路线**：
 
-| std:: 函数 | ❌ 错误用法 | ✅ Ascend C 替代 | 说明 |
-|-----------|----------|----------------|------|
-| `std::abs` | `std::abs(x)` | `AscendC::Abs(dst, src, count)` | 绝对值 |
-| `std::min/max` | `std::min(a, b)` | `(a < b) ? a : b` 或 `AscendC::Min/Max` | 最小/最大值 |
-| `std::sqrt` | `std::sqrt(x)` | `AscendC::Sqrt(dst, src, count)` | 平方根 |
-| `std::pow` | `std::pow(x, y)` | `AscendC::Power(dst, src, count)` | 幂运算 |
-| `std::exp` | `std::exp(x)` | `AscendC::Exp(dst, src, count)` | 指数 |
-| `std::log/log2/log10` | `std::log(x)` | `AscendC::Log/Log2/Log10(dst, src, count)` | 对数 |
-| `std::sin/cos/tan` | `std::sin(x)` | `AscendC::Sin/Cos/Tan(dst, src, count)` | 三角函数 |
-| `std::floor/ceil/round` | `std::floor(x)` | `AscendC::Floor/Ceil/Round(dst, src, count)` | 取整 |
-| `std::isnan/isinf` | `std::isnan(x)` | 手动检查 | 特殊值判断 |
+| Operation | Candidate when the selected mode lacks `std::` support | Required verification |
+|---|---|---|
+| scalar min/max | conditional expression | operand type, signedness, NaN and tie behavior |
+| vector abs/min/max | target-matched `Abs`, `Min`, or `Max` overload | supported type, mask/count, alias and product table |
+| vector sqrt/exp/log | target-matched `Sqrt`, `Exp`, or `Log` overload | API existence, accuracy, special values and product table |
+| power/trigonometric/rounding | an API explicitly present in the target headers | exact function name, supported types and numerical contract |
+| `isnan`/`isinf` | target-supported special-value API or a tested implementation | NaN/Inf representation and compiler behavior |
 
-**错误示例**：
+The names in this table are search candidates, not a promise that every listed
+API exists for every release or type. Compile the selected alternative with the
+target compiler.
+
+**Conditional example**:
 ```cpp
+// These calls are a problem only when the selected Kernel compilation mode
+// does not provide the included standard-library surface.
 #include <algorithm>
 #include <cmath>
 
-uint32_t result = std::min(a, b);  // ❌ 编译错误
-float val = std::sqrt(x);          // ❌ 编译错误
-float val = std::exp(x);           // ❌ 编译错误
+uint32_t result = std::min(a, b);
+float sqrtValue = std::sqrt(x);
+float expValue = std::exp(x);
 ```
 
-**正确替代**：
+**Candidate fallback after overload verification**:
 ```cpp
-// min/max：使用三元操作符
-uint32_t result = (a < b) ? a : b;  // ✅ min
-uint32_t result = (a > b) ? a : b;  // ✅ max
+uint32_t minimum = (a < b) ? a : b;
 
-// 或使用 Ascend C API（批量操作）
 AscendC::LocalTensor<T> minLocal = minBuf.Get<T>();
 AscendC::LocalTensor<T> srcLocal = srcBuf.Get<T>();
-AscendC::Min<T>(minLocal, srcLocal, src2Local, count);  // ✅ 批量最小值
+AscendC::Min<T>(minLocal, srcLocal, src2Local, count);
 
-// sqrt/exp/log 等：使用 Ascend C API
 AscendC::LocalTensor<T> dstLocal = dstBuf.Get<T>();
-AscendC::LocalTensor<T> srcLocal = srcBuf.Get<T>();
-AscendC::Sqrt<T>(dstLocal, srcLocal, count);  // ✅ 平方根
-AscendC::Exp<T>(dstLocal, srcLocal, count);   // ✅ 指数
-AscendC::Log<T>(dstLocal, srcLocal, count);   // ✅ 对数
+AscendC::Sqrt<T>(dstLocal, srcLocal, count);
 ```
 
-**重要**：不要把 Host/Tiling 侧的标准库规则套到 Kernel，也不要在未核对目标编译模式时断言某个 `std::` API 可用。
+**重要**：不要把 Host/Tiling 侧的标准库规则套到 Kernel，也不要在未
+编译目标模式时断言某个 `std::` API 可用或不可用。
 
-### 1.2 禁止动态内存分配
+### 1.2 Kernel dynamic allocation
 
-**原因**：AI Core 无动态内存管理能力
+Many AI Core Kernel compilation modes do not provide general-purpose dynamic
+allocation. Confirm the target compiler model; when it is unavailable, plan UB
+through TPipe/TQue/TBuf and Tiling rather than using `new`, `malloc`, or
+standard containers that allocate dynamically.
 
 **触发场景**：创建数组、缓冲区等
 
@@ -70,28 +69,26 @@ int* ptr = new int[10];     // ❌ 动态分配
 int* arr = malloc(100);     // ❌ 动态分配
 ```
 
-**正确替代**：使用静态分配
+**Kernel-side alternative**:
 ```cpp
-int arr[10];                          // ✅ 栈分配（Host 侧）
-constexpr uint32_t SIZE = 1024;       // ✅ 编译期常量
-pipe.InitBuffer(inQueue, 2, SIZE);    // ✅ UB 静态分配（Kernel 侧）
+pipe.InitBuffer(inQueue, bufferCount, bufferBytes);
 ```
 
 ### 1.3 Host/Kernel 头文件隔离
 
-**规则**：
-- **Host 侧**（`.cpp`）：禁止包含 `kernel_operator.h`
-- **Kernel 侧**（`.asc/.h`）：可包含 `kernel_operator.h`
+Keep Kernel-only headers out of translation units that are compiled only by the
+Host compiler. File extensions alone do not prove the compilation role; inspect
+the build command and project layout before reporting a violation.
 
 **错误示例**：
 ```cpp
-// host/tiling.cpp
-#include "kernel_operator.h"  // ❌ Host 侧禁止
+// A Host-only translation unit compiled without Kernel headers
+#include "kernel_operator.h"  // wrong for this build role
 ```
 
 **正确用法**：
 ```cpp
-// host/tiling.cpp
+// Host-only translation unit
 #include "tiling.h"  // ✅ 仅必要头文件
 #include <cstring>
 
@@ -108,10 +105,10 @@ pipe.InitBuffer(inQueue, 2, SIZE);    // ✅ UB 静态分配（Kernel 侧）
 | 限制类型 | 详细文档 | 核心要点 |
 |---------|---------|---------|
 | **GM 数据搬运** | [api-datacopy.md](api-datacopy.md) | 检查逐元素热路径、重载和尾部对齐 |
-| **Reduce API** | [api-reduce.md](api-reduce.md) | dst ≠ tmpBuffer，禁用低阶 API |
+| **Reduce API** | [api-reduce.md](api-reduce.md) | 核对目标重载的 alias、临时空间和 shape 规则 |
 | **Compare 对齐** | 见下文 2.1 | 按目标重载核对 count、mask 和 padding |
 | **repeatTime 限制** | [api-repeat-limits.md](api-repeat-limits.md) | uint8_t 最大 255，需分批处理 |
-| **流水线同步** | [api-pipeline.md](api-pipeline.md) | MTE/Vector 必须用 EnQue/DeQue 同步 |
+| **流水线同步** | [api-pipeline.md](api-pipeline.md) | 按队列模型和真实依赖选择同步方式 |
 
 ### 2.1 Compare API 对齐示例
 
@@ -148,30 +145,32 @@ DataCopy(dstGm, yLocal, A0);  // 只输出 A0 个
 
 ### 3.1 编译期常量
 
-**规则**：Buffer 大小、循环次数等使用 `constexpr`
+Use `constexpr` for values that are genuinely compile-time constants. Shapes,
+tiling values, product capacities, and workload-dependent loop bounds must stay
+runtime values. Do not report an ordinary `const` as a performance defect
+without compiler evidence.
 
 ```cpp
 // ✅ 正确：编译期常量
 constexpr uint32_t BUFFER_NUM = 2;
-constexpr uint32_t UB_SIZE = 192 * 1024;
 constexpr uint32_t BLOCK_SIZE = 32;
 
-// ❌ 不推荐：运行期常量
-const uint32_t buffer_num = 2;  // 可能影响性能
+// Runtime tiling value
+const uint32_t tileRows = tilingData.tileRows;
+const uint64_t availableUb = tilingData.availableUb;
 ```
 
 ### 3.2 类型转换
 
-**规则**：显式类型转换，避免隐式精度损失
+Derive the expression type before adding a cast. Cast before an integer
+multiplication that could overflow; do not add a cast merely for style or assume
+that promotion to `float` loses precision relative to a `half` operand.
 
 ```cpp
 // ✅ 正确：显式转换
 T sumVal = scalarLocal.GetValue(0);
-T invSumVal = (T)1.0 / sumVal;  // 显式转换为 T
+T invSumVal = static_cast<T>(1.0f / static_cast<float>(sumVal));
 Muls<T>(dst, src, invSumVal, count);
-
-// ❌ 错误：隐式转换
-float val = 1.0 / sumVal;  // 若 T 是 half，精度损失
 ```
 
 ---
@@ -182,11 +181,11 @@ float val = 1.0 / sumVal;  // 若 T 是 half，精度损失
 
 - [ ] Kernel 使用的 `std::` 函数是否被目标编译模式支持；不支持时改用已验证的 Ascend C API 或基础操作
 - [ ] 是否使用了动态内存（`std::vector`, `new`）→ 改用静态分配
-- [ ] Host 侧是否包含了 `kernel_operator.h` → 移除该包含
-- [ ] Reduce API 的 dst 和 tmp 是否是同一 buffer → 使用不同 buffer
-- [ ] 是否使用了 WholeReduce 等低阶 API → 改用高阶 Reduce API
-- [ ] 是否使用了 `const` 而非 `constexpr` → 改用 `constexpr`
-- [ ] 是否使用了不存在的类型（如 `TensorShape`）→ 查阅正确 API
+- [ ] Host-only 编译单元是否错误引入了目标编译器不可用的 Kernel-only 头文件
+- [ ] Reduce API 的 dst、src 和 tmp alias 是否满足目标重载
+- [ ] 所选 Reduce 层级是否满足功能、支持范围和实测性能要求
+- [ ] 编译期常量和运行时 Tiling 值是否被正确区分
+- [ ] 使用的 shape、tensor 和参数类型是否确实存在于目标版本头文件
 - [ ] Compare API 的 count、mask 和 padding 是否满足目标版本对应重载的约束
 
 ---

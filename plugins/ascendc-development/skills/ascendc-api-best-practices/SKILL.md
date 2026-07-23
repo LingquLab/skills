@@ -27,6 +27,11 @@ Use the bundled references as a reviewed snapshot of common patterns, not as a s
 5. Compare the guidance with the actual code, including tiling values, buffer sizes, tail handling, and synchronization.
 6. State the target version and evidence source. Mark any conclusion that is based only on the bundled snapshot as provisional.
 
+Several references include calibrated CANN 9.0 examples solely to disprove or
+narrow older blanket rules. Treat those links as evidence for 9.0, not as the
+default target release. A reference without target-matched evidence supplies a
+hypothesis or search route, not a final compatibility conclusion.
+
 ## Judgment Rules
 
 - Distinguish correctness constraints from performance guidance. Do not call an API forbidden merely because another pattern is usually faster.
