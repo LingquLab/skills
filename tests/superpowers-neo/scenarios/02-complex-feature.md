@@ -2,7 +2,7 @@
 
 ## Skills Under Test
 
-- `superpowers-neo-brainstorming`
+- `superpowers-neo-designing-complex-changes`
 - `superpowers-neo-writing-plans`
 
 ## Request

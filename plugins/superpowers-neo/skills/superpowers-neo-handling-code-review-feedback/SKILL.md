@@ -1,9 +1,9 @@
 ---
-name: superpowers-neo-receiving-code-review
+name: superpowers-neo-handling-code-review-feedback
 description: Use when evaluating or implementing code review feedback, including comments that appear straightforward, ambiguous, disputed, technically significant, potentially incorrect, or scope-expanding
 ---
 
-# Receiving Code Review
+# Handling Code Review Feedback
 
 ## Principle
 

@@ -60,13 +60,13 @@ skills/
 |       |-- .codex-plugin/
 |       |   `-- plugin.json
 |       `-- skills/
-|           |-- superpowers-neo-brainstorming/
+|           |-- superpowers-neo-designing-complex-changes/
 |           |-- superpowers-neo-executing-plans/
-|           |-- superpowers-neo-finishing-a-development-branch/
-|           |-- superpowers-neo-receiving-code-review/
+|           |-- superpowers-neo-git-delivery/
+|           |-- superpowers-neo-handling-code-review-feedback/
 |           |-- superpowers-neo-requesting-code-review/
 |           |-- superpowers-neo-systematic-debugging/
-|           |-- superpowers-neo-testing-strategy/
+|           |-- superpowers-neo-validation-strategy/
 |           |-- superpowers-neo-using-git-worktrees/
 |           |-- superpowers-neo-verification-before-completion/
 |           `-- superpowers-neo-writing-plans/

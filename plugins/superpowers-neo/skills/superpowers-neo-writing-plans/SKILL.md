@@ -17,7 +17,7 @@ For work that meets the trigger:
 
 1. Read repository guidance, any approved spec, and the relevant source and test structure.
 2. Treat the approved spec or settled user request as the scope boundary.
-3. Resolve material design ambiguity before planning. Use `superpowers-neo-brainstorming` when its complexity, ambiguity, cross-component, or architecture triggers apply.
+3. Resolve material design ambiguity before planning. Use `superpowers-neo-designing-complex-changes` when its complexity, ambiguity, cross-component, or architecture triggers apply.
 
 ## Write a Sufficient Plan
 

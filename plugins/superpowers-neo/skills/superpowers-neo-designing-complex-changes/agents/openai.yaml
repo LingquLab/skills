@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Complex Change Design"
+  short_description: "Design complex changes before implementation"
+  default_prompt: "Use $superpowers-neo-designing-complex-changes to clarify and design this complex change before implementation."
