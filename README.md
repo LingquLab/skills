@@ -22,7 +22,7 @@ Start a new Codex task after installation so newly installed skills are discover
 
 | Plugin | Description | Version |
 |---|---|---|
-| `superpowers-neo` | Pragmatic software-development workflows with rigor scaled to task complexity and risk | `0.1.0` |
+| `superpowers-neo` | Pragmatic software-development workflows with rigor scaled to task complexity and risk | `0.2.0` |
 | `ascendc-development` | Version-aware Ascend C API, review, documentation, diagnostics, and CANN setup workflows | `0.1.0` |
 
 ## Ascend C Development
@@ -53,23 +53,23 @@ Neo has no global entry skill. Each skill is independently discoverable and load
 
 | Skill | Use when |
 |---|---|
-| `superpowers-neo-brainstorming` | A change is complex, ambiguous, cross-component, or architecture-sensitive |
+| `superpowers-neo-designing-complex-changes` | A change is complex, ambiguous, cross-component, or architecture-sensitive |
 | `superpowers-neo-writing-plans` | Approved work needs a multi-step or subagent-ready implementation plan |
 | `superpowers-neo-using-git-worktrees` | Workspace isolation may be needed for dirty or parallel work |
 | `superpowers-neo-executing-plans` | An in-scope plan is ready for main-agent and scoped-subagent execution |
-| `superpowers-neo-testing-strategy` | A change needs validation proportional to its risk |
+| `superpowers-neo-validation-strategy` | A change needs validation proportional to its risk |
 | `superpowers-neo-systematic-debugging` | A bug or unexpected failure needs evidence-based diagnosis |
 | `superpowers-neo-requesting-code-review` | A substantial or risky change benefits from independent review |
-| `superpowers-neo-receiving-code-review` | Review feedback needs technical evaluation |
+| `superpowers-neo-handling-code-review-feedback` | Review feedback needs technical evaluation |
 | `superpowers-neo-verification-before-completion` | Work is about to be described as complete, fixed, or passing |
-| `superpowers-neo-finishing-a-development-branch` | Completed Git work needs scoped commit and delivery handling |
+| `superpowers-neo-git-delivery` | Completed Git work needs scoped commit and delivery handling |
 
 ### What Changes from Superpowers
 
 - No `using-superpowers` startup or umbrella skill.
-- Brainstorming and persistent plans trigger only when complexity justifies them.
+- Complex-change design and persistent plans trigger only when complexity justifies them.
 - Worktrees and subagents are selected by isolation and coordination value.
-- Testing is risk-driven; test-first development is useful but not universal.
+- Validation is risk-driven; test-first development is useful but not universal.
 - Independent review is selected by risk rather than required after every task.
 - Scoped task commits are authorized by default, as are normal pushes from established task-owned non-default branches; default-branch choices, PRs, merges, history rewrites, hook bypasses, and cleanup remain protected.
 - Skill-authoring methodology is not part of the shipped series.

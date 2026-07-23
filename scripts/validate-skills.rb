@@ -14,7 +14,7 @@ SCENARIOS_ROOT = File.join(ROOT, "tests", PLUGIN_NAME, "scenarios")
 EXPECTED_MARKETPLACE_NAME = "lingqulab"
 EXPECTED_MARKETPLACE_DISPLAY_NAME = "LingquLab Skills"
 EXPECTED_PLUGIN_SOURCE = "./plugins/superpowers-neo"
-EXPECTED_PLUGIN_VERSION = "0.1.0"
+EXPECTED_PLUGIN_VERSION = "0.2.0"
 EXPECTED_PLUGIN_CATEGORY = "Developer Tools"
 ASCENDC_PLUGIN_NAME = "ascendc-development"
 ASCENDC_PLUGIN_ROOT = File.join(PLUGINS_ROOT, ASCENDC_PLUGIN_NAME)
@@ -26,16 +26,16 @@ ALLOWED_INSTALLATION_POLICIES = %w[NOT_AVAILABLE AVAILABLE INSTALLED_BY_DEFAULT]
 ALLOWED_AUTHENTICATION_POLICIES = %w[ON_INSTALL ON_USE].freeze
 SEMVER_PATTERN = /\A(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/.freeze
 EXPECTED_SKILLS = %w[
-  superpowers-neo-brainstorming
+  superpowers-neo-designing-complex-changes
   superpowers-neo-writing-plans
   superpowers-neo-using-git-worktrees
   superpowers-neo-executing-plans
-  superpowers-neo-testing-strategy
+  superpowers-neo-validation-strategy
   superpowers-neo-systematic-debugging
   superpowers-neo-requesting-code-review
-  superpowers-neo-receiving-code-review
+  superpowers-neo-handling-code-review-feedback
   superpowers-neo-verification-before-completion
-  superpowers-neo-finishing-a-development-branch
+  superpowers-neo-git-delivery
 ].freeze
 EXPECTED_ASCENDC_SKILLS = %w[
   ascendc-api-best-practices

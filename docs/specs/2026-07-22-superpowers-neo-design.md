@@ -43,16 +43,16 @@ Superpowers Neo will be a separate personal skill series. It keeps the useful pl
 
 | Skill | Trigger | Primary responsibility |
 |---|---|---|
-| `superpowers-neo-brainstorming` | Complex, ambiguous, cross-component, or architecture-sensitive work | Clarify intent, compare real alternatives, produce an approved design |
+| `superpowers-neo-designing-complex-changes` | Complex, ambiguous, cross-component, or architecture-sensitive work | Clarify intent, compare real alternatives, produce an approved design |
 | `superpowers-neo-writing-plans` | Multi-step, cross-module, risky, multi-session, or handoff-oriented work | Produce an executable, subagent-friendly implementation plan |
 | `superpowers-neo-using-git-worktrees` | Explicit isolation request, parallel conflict, unsafe current workspace, or dirty workspace that may belong to other work | Decide whether and how to isolate work safely |
 | `superpowers-neo-executing-plans` | An in-scope plan is ready for implementation | Execute continuously using the main agent and appropriately scoped subagents |
-| `superpowers-neo-testing-strategy` | A feature, fix, refactor, or behavior change needs a validation strategy | Select tests and other evidence in proportion to risk |
+| `superpowers-neo-validation-strategy` | A feature, fix, refactor, or behavior change needs a validation strategy | Select tests and other evidence in proportion to risk |
 | `superpowers-neo-systematic-debugging` | A bug, failure, or unexpected behavior needs diagnosis | Establish evidence and root cause before applying a fix |
 | `superpowers-neo-requesting-code-review` | A change has enough risk or breadth to benefit from an independent review | Obtain focused, evidence-based review findings |
-| `superpowers-neo-receiving-code-review` | Review feedback must be evaluated or implemented | Verify feedback technically before accepting, clarifying, or rejecting it |
+| `superpowers-neo-handling-code-review-feedback` | Review feedback must be evaluated or implemented | Verify feedback technically before accepting, clarifying, or rejecting it |
 | `superpowers-neo-verification-before-completion` | The agent is about to claim work is complete, fixed, or passing | Require current relevant evidence and disclose validation gaps |
-| `superpowers-neo-finishing-a-development-branch` | Git-backed feature or fix work is complete, or the user requests Git delivery | Commit completed task work, push established task branches by default, and protect downstream delivery actions |
+| `superpowers-neo-git-delivery` | Git-backed feature or fix work is complete, or the user requests Git delivery | Commit completed task work, push established task branches by default, and protect downstream delivery actions |
 
 There is no umbrella or startup skill. Discovery depends on each skill's own precise description and trigger conditions.
 
@@ -61,14 +61,14 @@ There is no umbrella or startup skill. Discovery depends on each skill's own pre
 ### 6.1 Clear, small change
 
 1. Inspect the relevant repository guidance and code.
-2. Implement directly without invoking brainstorming or a persistent plan.
-3. Apply risk-driven testing.
+2. Implement directly without invoking the complex-change design workflow or a persistent plan.
+3. Apply risk-driven validation.
 4. Verify before claiming completion.
 5. If this is feature or fix work in a Git repository, enter the delivery decision flow.
 
 ### 6.2 Complex feature
 
-1. Use `superpowers-neo-brainstorming`.
+1. Use `superpowers-neo-designing-complex-changes`.
 2. Write and obtain approval for a spec when the design helps explain the overall system.
 3. Use `superpowers-neo-writing-plans` when execution is multi-step, risky, cross-module, multi-session, or intended for handoff.
 4. Evaluate the current workspace with `superpowers-neo-using-git-worktrees` when isolation may be useful.
@@ -79,14 +79,14 @@ There is no umbrella or startup skill. Discovery depends on each skill's own pre
 ### 6.3 Bug fix
 
 1. Use `superpowers-neo-systematic-debugging` when the root cause is not already established.
-2. Select a suitable regression or alternative validation strategy with `superpowers-neo-testing-strategy`.
+2. Select a suitable regression or alternative validation strategy with `superpowers-neo-validation-strategy`.
 3. Implement the fix without an absolute test-first requirement.
 4. Verify the result and disclose any untested boundary.
 5. Enter the Git delivery flow when applicable.
 
 ## 7. Detailed Skill Behavior
 
-### 7.1 `superpowers-neo-brainstorming`
+### 7.1 `superpowers-neo-designing-complex-changes`
 
 Trigger only when the task is complex, has key ambiguity, spans components, or requires an architectural decision. Clear small edits, fixes, and configuration changes proceed directly.
 
@@ -190,9 +190,9 @@ Every subagent reports:
 
 The main agent reviews the evidence and does not blindly retry an unchanged prompt. It may add context, narrow the task, take over directly, or reassign the work.
 
-### 7.5 `superpowers-neo-testing-strategy`
+### 7.5 `superpowers-neo-validation-strategy`
 
-Testing is risk-driven rather than universally test-first.
+Validation is risk-driven rather than universally test-first.
 
 - Prefer TDD when behavior is clear, regression risk is high, or a bug can be reproduced reliably before the fix.
 - Allow exploration or implementation before tests when that is the more effective path.
@@ -230,7 +230,7 @@ A review subagent receives:
 
 It does not receive the implementer's desired conclusion. Findings are ordered by severity and include file locations, technical reasoning, and actionable consequences. A no-finding review still identifies test gaps and residual risk.
 
-### 7.8 `superpowers-neo-receiving-code-review`
+### 7.8 `superpowers-neo-handling-code-review-feedback`
 
 Evaluate feedback against code, the governing spec or settled request, relevant plan when one exists, and actual behavior.
 
@@ -253,7 +253,7 @@ Before claiming work is complete, fixed, or passing:
 - If environment, hardware, permission, or external-system constraints prevent verification, state what was verified, what was not, why, and the residual risk.
 - Never present inference as a confirmed passing result.
 
-### 7.10 `superpowers-neo-finishing-a-development-branch`
+### 7.10 `superpowers-neo-git-delivery`
 
 Enter the delivery flow automatically when feature or bug-fix work completes in a Git repository. Do not enter when the user explicitly opts out. Ask when the task category is unclear. Non-Git work only receives a result summary.
 
@@ -328,7 +328,7 @@ Enter the delivery flow automatically when feature or bug-fix work completes in 
 
 ## 10. Acceptance Criteria
 
-1. A clear small edit does not trigger brainstorming or a persistent plan.
+1. A clear small edit does not trigger the complex-change design workflow or a persistent plan.
 2. A complex architectural task produces a repository spec and waits for user approval before implementation.
 3. A multi-step task can produce subagent-ready tasks with sufficient authoritative context.
 4. A dirty workspace that may represent other work causes a worktree question, not an automatic stash or cleanup.

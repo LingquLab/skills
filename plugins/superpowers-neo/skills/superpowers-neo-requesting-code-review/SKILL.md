@@ -44,4 +44,4 @@ Separate questions and assumptions from confirmed defects. If no issues are foun
 
 ## Integration Boundary
 
-Review output is evidence, not a command. Evaluate it with `superpowers-neo-receiving-code-review`; the main agent remains responsible for the final integration decision.
+Review output is evidence, not a command. Evaluate it with `superpowers-neo-handling-code-review-feedback`; the main agent remains responsible for the final integration decision.
