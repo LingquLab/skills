@@ -390,7 +390,7 @@ end
 def validate_ascendc_migration_contract
   forbidden_patterns = {
     "Claude Task instruction" => /Task 工具|subagent_type=Explore/,
-    "removed online search dependency" => /ascend_search_(?:client|skill)|ascend_content_fetcher|requirements\.txt/,
+    "legacy split online search dependency" => /ascend_search_(?:client|skill)|ascend_content_fetcher|requirements\.txt/,
     "removed duplicate skill" => /skills\/commit-push-pr/
   }
   runtime_files = Dir.glob(File.join(ASCENDC_PLUGIN_ROOT, "**", "*")).select { |path| File.file?(path) }
@@ -404,6 +404,19 @@ def validate_ascendc_migration_contract
   license_text = File.read(license_path)
   unless license_text.start_with?("CANN Open Software License Agreement Version 2.0")
     raise "#{license_path}: unexpected license text"
+  end
+
+  docs_search_script = File.join(
+    ASCENDC_PLUGIN_ROOT,
+    "skills",
+    "ascendc-docs-search",
+    "scripts",
+    "search_ascend_docs.py"
+  )
+  raise "#{docs_search_script}: official documentation search script is missing" unless File.file?(docs_search_script)
+  syntax_check = "import sys; path = sys.argv[1]; compile(open(path, encoding='utf-8').read(), path, 'exec')"
+  unless system("python3", "-c", syntax_check, docs_search_script, out: File::NULL, err: File::NULL)
+    raise "#{docs_search_script}: Python syntax validation failed"
   end
 
   validate_relative_markdown_links(ASCENDC_PLUGIN_ROOT)

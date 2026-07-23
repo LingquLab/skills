@@ -43,4 +43,11 @@ Inspect the version metadata shipped with the selected toolkit or source checkou
 
 ## Search Online
 
-Use the API name, target CANN version, SoC family, and one distinctive parameter or error in the query. Prefer official pages under `hiascend.com` and official CANN repositories. Open the result and confirm the relevant text before citing it.
+From the skill directory, query and fetch official Huawei documentation with:
+
+```bash
+python3 scripts/search_ascend_docs.py 'APIName' --fetch --max-results 5
+python3 scripts/search_ascend_docs.py 'APIName' --fetch --version 8.3.RC1
+```
+
+Check `document.keyword_found` and the extracted excerpts before citing a result. Use `--full-content` only when the excerpts do not contain enough context. If the endpoint is unavailable, search the official site for the API name, target CANN version, SoC family, and one distinctive parameter or error.

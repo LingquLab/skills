@@ -35,8 +35,16 @@ Read `references/local-search-layout.md` for common locations and query patterns
 
 ## Online Fallback
 
-Use online search only when local sources are absent, incomplete, or mismatched. Search for the API plus the CANN version, SoC family, and relevant parameter or error. Open the source page and verify it actually contains the claimed signature or restriction.
+Use online search only when local sources are absent, incomplete, or mismatched. Run the bundled script first; resolve its path relative to this `SKILL.md`, not the user's working directory:
+
+```bash
+python3 scripts/search_ascend_docs.py 'APIName' --fetch --max-results 5
+```
+
+The script queries Huawei's official Ascend documentation search endpoint, converts results to public documentation URLs, fetches matching pages, and returns structured JSON with keyword excerpts and matching code blocks. It has no third-party Python dependencies. Useful options include `--version 8.3.RC1`, `--lang en`, `--doc-type API`, and `--full-content` when the complete extracted page text is required.
+
+Inspect more than the result title: confirm `document.keyword_found`, then read the returned excerpts or full content for the exact signature, restrictions, and version context. If the official endpoint is unavailable or returns no authoritative match, use an official-site web search as the final fallback. Restrict technical conclusions to Huawei Ascend documentation or official CANN repositories and provide direct links.
 
 ## Output
 
-Provide the exact source path or official URL, the version/SoC context, the relevant signature or restriction in concise form, and any mismatch with the user's environment. If no authoritative match is found, say what was searched and keep the conclusion provisional.
+Provide the exact source path or official URL, the version/SoC context, the relevant signature or restriction in concise form, and any mismatch with the user's environment. State whether the bundled online search script found and fetched the page. If no authoritative match is found, say what was searched and keep the conclusion provisional.
