@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Executing Plans"
+  short_description: "Execute in-scope plans with proportional delegation"
+  default_prompt: "Use $superpowers-neo-executing-plans to execute this in-scope plan continuously with only as much delegation as the work justifies."

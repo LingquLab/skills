@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Brainstorming"
+  short_description: "Design complex changes before implementation"
+  default_prompt: "Use $superpowers-neo-brainstorming to clarify and design this complex change before implementation."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Development Delivery"
+  short_description: "Deliver completed Git changes through authorized steps"
+  default_prompt: "Use $superpowers-neo-finishing-a-development-branch to prepare this completed Git work for authorized delivery."

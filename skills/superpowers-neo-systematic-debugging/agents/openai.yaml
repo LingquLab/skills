@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Systematic Debugging"
+  short_description: "Diagnose failures from evidence and root cause"
+  default_prompt: "Use $superpowers-neo-systematic-debugging to diagnose this unexpected failure from evidence."

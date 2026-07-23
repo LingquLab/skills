@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Writing Plans"
+  short_description: "Plan complex work for agents and handoffs"
+  default_prompt: "Use $superpowers-neo-writing-plans to write an executable implementation plan for this approved design."
