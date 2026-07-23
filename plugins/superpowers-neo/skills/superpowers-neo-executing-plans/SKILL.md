@@ -33,7 +33,7 @@ Each subagent receives:
 - authoritative repository-guidance and plan paths, plus the approved spec path when one exists or the settled request when it does not;
 - required verification and the result protocol below.
 
-Shared-workspace subagents may modify and verify but must not commit, push, or open a pull request. An isolated-worktree subagent may create a local integration commit only when the user explicitly authorizes that commit, including by explicitly approving a named plan step. A generated plan alone is not authorization. Pushes and pull requests require separate user authorization.
+Shared-workspace subagents may modify and verify but must not commit, push, or open a pull request; this is a coordination boundary, not an extra user-authorization prompt. An isolated-worktree subagent may create a scoped local integration commit by default after its assigned work is complete and verified. Subagents do not push or open pull requests. The main agent applies the delivery skill's default push rule only after reviewing and integrating the delegated result.
 
 Do not hard-code model names. Subagents inherit the current model and reasoning settings unless the user or a supported environment policy explicitly directs otherwise.
 

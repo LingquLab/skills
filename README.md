@@ -41,7 +41,7 @@ Neo has no global entry skill. Each skill is independently discoverable and load
 | `superpowers-neo-requesting-code-review` | A substantial or risky change benefits from independent review |
 | `superpowers-neo-receiving-code-review` | Review feedback needs technical evaluation |
 | `superpowers-neo-verification-before-completion` | Work is about to be described as complete, fixed, or passing |
-| `superpowers-neo-finishing-a-development-branch` | Completed Git work needs an authorized delivery decision |
+| `superpowers-neo-finishing-a-development-branch` | Completed Git work needs scoped commit and delivery handling |
 
 ### What Changes from Superpowers
 
@@ -50,7 +50,7 @@ Neo has no global entry skill. Each skill is independently discoverable and load
 - Worktrees and subagents are selected by isolation and coordination value.
 - Testing is risk-driven; test-first development is useful but not universal.
 - Independent review is selected by risk rather than required after every task.
-- Git commit, push, PR, merge, history rewrite, and cleanup remain separate authorization boundaries.
+- Scoped task commits are authorized by default, as are normal pushes from established task-owned non-default branches; default-branch choices, PRs, merges, history rewrites, hook bypasses, and cleanup remain protected.
 - Skill-authoring methodology is not part of the shipped series.
 
 See the [Superpowers Neo design](docs/specs/2026-07-22-superpowers-neo-design.md) for its behavior contract and the [marketplace design](docs/specs/2026-07-23-codex-marketplace-design.md) for packaging and extension decisions.

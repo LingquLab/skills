@@ -33,11 +33,11 @@ Execute an approved plan whose two independent tasks both modify the same genera
 - Do not run both writers concurrently in the same workspace.
 - Serialize the tasks or use separate worktrees with an explicit integration boundary.
 - If isolation was not already requested or approved, explain the conflict and obtain the user's direction before creating worktrees.
-- Keep local worktree commits limited to explicit user authorization, including a user-approved named plan step; do not push or open PRs.
+- Permit each isolated-worktree subagent to create a scoped local integration commit by default after its assigned work is complete and verified; do not let subagents push or open PRs.
 
 ## Failure Signals B
 
 - Treating nominal task independence as proof that shared writes are safe.
 - Creating worktrees without an explained isolation reason or approved plan boundary.
-- Treating an agent-generated plan as commit authorization.
-- Letting separate worktrees bypass delivery authorization.
+- Treating worktree creation alone as proof that a branch is task-owned and eligible for a default push.
+- Letting subagents push or open PRs instead of returning their local commits to the main agent for review and integration.

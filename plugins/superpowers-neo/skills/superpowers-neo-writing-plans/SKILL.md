@@ -51,7 +51,7 @@ An implementation plan within an approved spec needs no separate user approval. 
 
 If feedback or discovery crosses a boundary, update the plan and request approval again. Ordinary detail within the approved boundary does not reopen approval.
 
-A generated plan is not authority for external Git actions. A commit still needs authorization from the original request or the delivery confirmation flow. Push or pull-request steps count as authorized only when the user explicitly approves those named actions in the plan. Merge, history rewrite, and cleanup always retain their own explicit authorization boundaries. Treat adding any of these actions as a material approval decision, not ordinary plan detail.
+A generated plan does not expand Git delivery authority. The delivery flow authorizes a scoped commit by default and a normal push from an established, task-owned non-default branch; branch choice on the default branch still requires user direction. A pull-request step counts as authorized only when the user explicitly approves that named action. Merge, history rewrite, hook bypass, and cleanup always retain their own explicit authorization boundaries. Treat adding any protected action as a material approval decision, not ordinary plan detail.
 
 ## Store and Retire the Plan
 

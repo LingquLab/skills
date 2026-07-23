@@ -33,8 +33,8 @@ Same-workspace parallel writers must have explicit, disjoint file ownership. Ser
 
 ## Preserve Existing Work
 
-Never automatically stash, move, commit, clean, overwrite, or discard existing changes. Do not assume an untracked file is disposable or that a staged change belongs to the current task.
+Never automatically stash, move, clean, overwrite, or discard pre-existing or user-owned changes. Commit only the exact task-owned scope under the delivery default. Do not assume an untracked file is disposable or that a staged change belongs to the current task.
 
-Creating a worktree grants no extra delivery authority. In a shared workspace, delegated agents may edit and verify but must not commit, push, or open a pull request. In an isolated worktree, a local integration commit is allowed only when the user explicitly authorizes that commit, including by explicitly approving a named plan step. A generated plan alone is not authorization. Pushes and pull requests always require separate user authorization.
+Creating a worktree does not by itself establish task ownership or authorize protected delivery actions. In a shared workspace, delegated agents may edit and verify but must not commit, push, or open a pull request. In an isolated worktree, a delegated agent may create a scoped local integration commit by default after its assigned work is complete and verified. Delegated agents do not push or open pull requests; after reviewing the result, the main agent may use the default push authority only when the branch is established, task-owned, and non-default.
 
 After setup, verify the original workspace is unchanged and the selected workspace is on the intended branch and path.

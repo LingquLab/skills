@@ -30,7 +30,7 @@ The repository will therefore become a Git-backed Codex marketplace. Superpowers
 - Do not add Codex product gating to the marketplace entry.
 - Do not remove or rewrite currently installed personal copies under `CODEX_HOME`.
 - Do not automatically configure the marketplace in a user's Codex installation.
-- Do not authorize commit, push, PR update, merge, or cleanup actions beyond separately granted Git authorization.
+- Do not change Git delivery authority as part of marketplace packaging; it remains governed by the Superpowers Neo delivery skill.
 
 ## 4. Architectural Decision
 
