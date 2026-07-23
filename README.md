@@ -23,6 +23,27 @@ Start a new Codex task after installation so newly installed skills are discover
 | Plugin | Description | Version |
 |---|---|---|
 | `superpowers-neo` | Pragmatic software-development workflows with rigor scaled to task complexity and risk | `0.1.0` |
+| `ascendc-development` | Version-aware Ascend C API, review, documentation, diagnostics, and CANN setup workflows | `0.1.0` |
+
+## Ascend C Development
+
+Install the plugin from the marketplace:
+
+```bash
+codex plugin add ascendc-development@lingqulab
+```
+
+The plugin contains five independently triggered skills:
+
+| Skill | Use when |
+|---|---|
+| `ascendc-api-best-practices` | Implementing or debugging Ascend C API usage and alignment, buffer, precision, or pipeline behavior |
+| `ascendc-code-review` | Reviewing Host, Tiling, Kernel, SIMT, build, or operator changes |
+| `ascendc-docs-search` | Locating version-matched local or official Ascend C documentation and examples |
+| `ascendc-env-check` | Performing read-only CANN environment and NPU visibility diagnostics |
+| `cann-env-setup` | Planning or carrying out a guarded, version-matched CANN installation or repair |
+
+These skills are adapted from TileXR's Claude skills at source commit `1e2619e793b5894a1aec2d7d6897dbe5f7c501c0`. Claude-specific tool calls, fixed environment assumptions, unstable online-search scripts, destructive diagnostic commands, and the duplicate `commit-push-pr` skill are intentionally not shipped. See the [migration audit](docs/specs/2026-07-23-ascendc-development-migration.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Superpowers Neo
 
@@ -65,7 +86,7 @@ ruby -c scripts/validate-skills.rb
 bash -n scripts/install.sh
 ```
 
-It checks the marketplace catalog, plugin manifests and paths, all ten Superpowers Neo skill packages, and all nine behavior scenario definitions.
+It checks the marketplace catalog, both plugin manifests and paths, all ten Superpowers Neo skill packages, all five Ascend C Development skill packages, relative documentation links, and all nine behavior scenario definitions.
 
 Behavioral validation is a fresh-agent evaluation. Give a new agent only the relevant `SKILL.md` files and the request section from one file under `tests/superpowers-neo/scenarios/`, then compare the response with its expected behaviors and failure signals. Do not include the expected result in the agent prompt.
 
@@ -123,4 +144,4 @@ Superpowers Neo is an independent adaptation inspired by [Superpowers](https://g
 
 ## License
 
-This marketplace and Superpowers Neo are licensed under the [MIT License](LICENSE).
+This marketplace and Superpowers Neo are licensed under the [MIT License](LICENSE). The `ascendc-development` plugin is separately licensed under the [CANN Open Software License Agreement Version 2.0](plugins/ascendc-development/LICENSE); see [third-party notices](THIRD_PARTY_NOTICES.md).

@@ -1,0 +1,37 @@
+{
+  "name": "ascendc-development",
+  "version": "0.1.0",
+  "description": "Version-aware Ascend C development, review, documentation, environment, and CANN setup workflows.",
+  "author": {
+    "name": "LingquLab",
+    "url": "https://github.com/LingquLab"
+  },
+  "homepage": "https://github.com/LingquLab/skills",
+  "repository": "https://github.com/LingquLab/skills",
+  "license": "LicenseRef-CANN-2.0",
+  "keywords": [
+    "Ascend C",
+    "CANN",
+    "NPU",
+    "code review",
+    "environment diagnostics"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Ascend C Development",
+    "shortDescription": "Build, review, document, and diagnose Ascend C software.",
+    "longDescription": "Develop and review Ascend C kernels with version-matched API guidance, authoritative documentation search, read-only NPU environment diagnostics, and guarded CANN setup workflows.",
+    "developerName": "LingquLab",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/LingquLab/skills",
+    "defaultPrompt": [
+      "Find the version-matched Ascend C API guidance for this issue.",
+      "Review this Ascend C change for correctness and compatibility.",
+      "Check this host's CANN and NPU environment."
+    ]
+  }
+}

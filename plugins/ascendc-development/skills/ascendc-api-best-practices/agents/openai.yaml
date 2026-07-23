@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ascend C API Best Practices"
+  short_description: "Version-aware guidance for Ascend C API usage"
+  default_prompt: "Use $ascendc-api-best-practices to verify this Ascend C API usage against the relevant bundled guidance."

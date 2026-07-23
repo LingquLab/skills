@@ -32,3 +32,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## TileXR Ascend C Skills
+
+The `ascendc-development` plugin adapts and modifies Ascend C and CANN skill documentation and diagnostic scripts from TileXR:
+
+- Project: TileXR
+- Source: https://github.com/LingquLab/TileXR/tree/1e2619e793b5894a1aec2d7d6897dbe5f7c501c0/.claude/skills
+- Source commit: `1e2619e793b5894a1aec2d7d6897dbe5f7c501c0`
+- Copyright: Copyright (c) 2026 Huawei Technologies Co., Ltd.
+- License: CANN Open Software License Agreement Version 2.0
+- Included license: `plugins/ascendc-development/LICENSE`
+- Official license source used to recover the upstream repository's missing license file: https://gitee.com/ascend/shmem/blob/master/LICENSE
+
+The CANN license applies to the `ascendc-development` plugin and its adapted contents. In particular, its grant is limited to developing software for use with Ascend processors. The repository's root MIT license does not replace that plugin-specific license.
