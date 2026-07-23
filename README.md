@@ -1,10 +1,34 @@
-# Superpowers Neo
+# LingquLab Skills
 
-Superpowers Neo is a pragmatic, modular software-development workflow for coding agents. It keeps explicit design, plan execution, debugging, review, verification, and Git delivery practices while scaling ceremony to the ambiguity and risk of the task.
+LingquLab Skills is a Git-backed Codex marketplace for independently installable skills and skill series.
+
+## Install the Marketplace
+
+Add this repository as a Codex marketplace:
+
+```bash
+codex plugin marketplace add LingquLab/skills
+```
+
+Then install a plugin from the catalog:
+
+```bash
+codex plugin add superpowers-neo@lingqulab
+```
+
+Start a new Codex task after installation so newly installed skills are discovered reliably.
+
+## Plugins
+
+| Plugin | Description | Version |
+|---|---|---|
+| `superpowers-neo` | Pragmatic software-development workflows with rigor scaled to task complexity and risk | `0.1.0` |
+
+## Superpowers Neo
+
+Superpowers Neo is a modular software-development workflow for coding agents. It keeps explicit design, plan execution, debugging, review, verification, and Git delivery practices while scaling ceremony to the ambiguity and risk of the task.
 
 Neo has no global entry skill. Each skill is independently discoverable and loads only when its own trigger matches.
-
-## Skills
 
 | Skill | Use when |
 |---|---|
@@ -19,7 +43,7 @@ Neo has no global entry skill. Each skill is independently discoverable and load
 | `superpowers-neo-verification-before-completion` | Work is about to be described as complete, fixed, or passing |
 | `superpowers-neo-finishing-a-development-branch` | Completed Git work needs an authorized delivery decision |
 
-## What Changes from Superpowers
+### What Changes from Superpowers
 
 - No `using-superpowers` startup or umbrella skill.
 - Brainstorming and persistent plans trigger only when complexity justifies them.
@@ -29,22 +53,29 @@ Neo has no global entry skill. Each skill is independently discoverable and load
 - Git commit, push, PR, merge, history rewrite, and cleanup remain separate authorization boundaries.
 - Skill-authoring methodology is not part of the shipped series.
 
-See the [approved design](docs/specs/2026-07-22-superpowers-neo-design.md) for the complete behavior contract.
+See the [Superpowers Neo design](docs/specs/2026-07-22-superpowers-neo-design.md) for its behavior contract and the [marketplace design](docs/specs/2026-07-23-codex-marketplace-design.md) for packaging and extension decisions.
 
 ## Validate
 
-The validator uses Ruby's standard YAML library and needs no Python packages:
+The repository validator uses Ruby standard libraries and needs no package installation:
 
 ```bash
 ruby scripts/validate-skills.rb
+ruby -c scripts/validate-skills.rb
 bash -n scripts/install.sh
 ```
 
-The Ruby validator checks the ten skill packages and the structure of all nine behavior scenario definitions. Behavioral validation itself is a fresh-agent evaluation: give a new agent only the relevant `SKILL.md` files and the request section from one file in `tests/scenarios/`, then compare the response with its expected behaviors and failure signals. Do not include the expected result in the agent prompt.
+It checks the marketplace catalog, plugin manifests and paths, all ten Superpowers Neo skill packages, and all nine behavior scenario definitions.
 
-## Install
+Behavioral validation is a fresh-agent evaluation. Give a new agent only the relevant `SKILL.md` files and the request section from one file under `tests/superpowers-neo/scenarios/`, then compare the response with its expected behaviors and failure signals. Do not include the expected result in the agent prompt.
 
-Preview installation first:
+Before publishing a plugin change, also run the current validator supplied by Codex's installed `plugin-creator` skill against that plugin directory. This catches schema changes that may be newer than the repository validator.
+
+## Manual Superpowers Neo Installation
+
+Marketplace installation is preferred. A manual fallback remains available for environments that do not use Codex plugins.
+
+Preview the installation:
 
 ```bash
 scripts/install.sh --dry-run
@@ -56,13 +87,35 @@ Install to `${CODEX_HOME:-$HOME/.codex}/skills`:
 scripts/install.sh
 ```
 
-Use `--target PATH` to install elsewhere. The installer copies exactly the ten Neo skill directories, refuses to overwrite existing targets, and never disables or removes the original Superpowers plugin.
+Use `--target PATH` to install elsewhere. The installer copies exactly the ten Neo skill directories from `plugins/superpowers-neo/skills/`, refuses to overwrite existing targets, and never disables or removes the original Superpowers plugin.
 
-For an update, validate the new checkout, review the differences against the installed Neo directories, remove or archive the old Neo directories deliberately, and run the installer again. Refusing in-place overwrite prevents a partial update from mixing versions.
+### Avoid Duplicate Installations
 
-## Cutover
+Manual copies under `${CODEX_HOME:-$HOME/.codex}/skills/superpowers-neo-*` can coexist with the marketplace plugin, but duplicate skill names make the active source ambiguous. After validating the marketplace plugin in a new Codex task, deliberately remove or archive the old manual copies. Marketplace installation does not modify them automatically.
 
-Neo and the original plugin may coexist during validation. Remove `superpowers@openai-api-curated` only after Neo has been reviewed in real tasks and the user explicitly authorizes cutover. Installing Neo does not imply permission to remove the original plugin.
+The original `superpowers@openai-api-curated` plugin may also coexist with Neo during evaluation. Remove it only after Neo has been reviewed in real tasks and the user explicitly authorizes that cutover.
+
+## Add a Plugin
+
+Each independently versioned plugin lives under:
+
+```text
+plugins/<plugin-name>/
+|-- .codex-plugin/plugin.json
+`-- skills/
+```
+
+To add a plugin:
+
+1. Use one normalized lower-case hyphenated name for its directory, manifest, and marketplace entry.
+2. Give the plugin its own strict semantic version.
+3. Put runtime skills under `plugins/<plugin-name>/skills/`.
+4. Append its entry to `.agents/plugins/marketplace.json`; catalog order is user-visible.
+5. Include `policy.installation`, `policy.authentication`, and `category`; omit product gating unless it is an explicit requirement.
+6. Add plugin-specific tests under `tests/<plugin-name>/` and extend repository validation.
+7. Document its selector as `<plugin-name>@lingqulab`.
+
+Keep coherent skill series together, but publish unrelated skills as separate plugins instead of expanding one catch-all package.
 
 ## Attribution
 
@@ -70,4 +123,4 @@ Superpowers Neo is an independent adaptation inspired by [Superpowers](https://g
 
 ## License
 
-Superpowers Neo is licensed under the [MIT License](LICENSE).
+This marketplace and Superpowers Neo are licensed under the [MIT License](LICENSE).

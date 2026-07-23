@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PLUGIN_ROOT="$REPO_ROOT/plugins/superpowers-neo"
 TARGET="${CODEX_HOME:-$HOME/.codex}/skills"
 DRY_RUN=false
 
@@ -50,7 +51,7 @@ while (($#)); do
 done
 
 for skill in "${SKILLS[@]}"; do
-  source_dir="$REPO_ROOT/skills/$skill"
+  source_dir="$PLUGIN_ROOT/skills/$skill"
   target_dir="$TARGET/$skill"
 
   if [[ ! -f "$source_dir/SKILL.md" || ! -f "$source_dir/agents/openai.yaml" ]]; then
@@ -66,7 +67,7 @@ done
 
 if [[ "$DRY_RUN" == true ]]; then
   for skill in "${SKILLS[@]}"; do
-    printf 'would install %s -> %s\n' "$REPO_ROOT/skills/$skill" "$TARGET/$skill"
+    printf 'would install %s -> %s\n' "$PLUGIN_ROOT/skills/$skill" "$TARGET/$skill"
   done
   exit 0
 fi
@@ -109,7 +110,7 @@ for skill in "${SKILLS[@]}"; do
     printf 'error: target appeared during installation; refusing to overwrite: %s\n' "$TARGET/$skill" >&2
     false
   fi
-  cp -R "$REPO_ROOT/skills/$skill" "$STAGE_DIR/$skill"
+  cp -R "$PLUGIN_ROOT/skills/$skill" "$STAGE_DIR/$skill"
 done
 
 for skill in "${SKILLS[@]}"; do

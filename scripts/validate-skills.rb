@@ -1,10 +1,24 @@
 #!/usr/bin/env ruby
 
+require "json"
 require "yaml"
 
 ROOT = File.expand_path("..", __dir__)
-SKILLS_ROOT = File.join(ROOT, "skills")
-SCENARIOS_ROOT = File.join(ROOT, "tests", "scenarios")
+MARKETPLACE_PATH = File.join(ROOT, ".agents", "plugins", "marketplace.json")
+PLUGINS_ROOT = File.join(ROOT, "plugins")
+PLUGIN_NAME = "superpowers-neo"
+PLUGIN_ROOT = File.join(PLUGINS_ROOT, PLUGIN_NAME)
+PLUGIN_MANIFEST_PATH = File.join(PLUGIN_ROOT, ".codex-plugin", "plugin.json")
+SKILLS_ROOT = File.join(PLUGIN_ROOT, "skills")
+SCENARIOS_ROOT = File.join(ROOT, "tests", PLUGIN_NAME, "scenarios")
+EXPECTED_MARKETPLACE_NAME = "lingqulab"
+EXPECTED_MARKETPLACE_DISPLAY_NAME = "LingquLab Skills"
+EXPECTED_PLUGIN_SOURCE = "./plugins/superpowers-neo"
+EXPECTED_PLUGIN_VERSION = "0.1.0"
+EXPECTED_PLUGIN_CATEGORY = "Developer Tools"
+ALLOWED_INSTALLATION_POLICIES = %w[NOT_AVAILABLE AVAILABLE INSTALLED_BY_DEFAULT].freeze
+ALLOWED_AUTHENTICATION_POLICIES = %w[ON_INSTALL ON_USE].freeze
+SEMVER_PATTERN = /\A(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/.freeze
 EXPECTED_SKILLS = %w[
   superpowers-neo-brainstorming
   superpowers-neo-writing-plans
@@ -30,6 +44,166 @@ EXPECTED_SCENARIOS = %w[
   08-verification-gap.md
   09-git-delivery.md
 ].freeze
+
+def load_json(path)
+  value = JSON.parse(File.read(path))
+  raise "#{path}: root must be an object" unless value.is_a?(Hash)
+
+  value
+rescue JSON::ParserError => e
+  raise "#{path}: invalid JSON: #{e.message}"
+end
+
+def contains_placeholder?(value)
+  case value
+  when Hash
+    value.any? { |key, child| contains_placeholder?(key) || contains_placeholder?(child) }
+  when Array
+    value.any? { |child| contains_placeholder?(child) }
+  when String
+    value.match?(/\b(?:TBD|TODO|PLACEHOLDER)\b/)
+  else
+    false
+  end
+end
+
+def require_non_empty_string(mapping, key, path)
+  value = mapping[key]
+  raise "#{path}: #{key} must be a non-empty string" unless value.is_a?(String) && !value.strip.empty?
+
+  value
+end
+
+def resolve_relative_directory(root, raw_path, label)
+  unless raw_path.is_a?(String) && raw_path.start_with?("./")
+    raise "#{label}: path must be relative and start with ./"
+  end
+
+  expanded = File.expand_path(raw_path, root)
+  real_root = File.realpath(root)
+  raise "#{label}: directory does not exist: #{raw_path}" unless File.directory?(expanded)
+
+  real_path = File.realpath(expanded)
+  unless real_path.start_with?("#{real_root}/")
+    raise "#{label}: path escapes #{root}: #{raw_path}"
+  end
+
+  real_path
+end
+
+
+def validate_plugin_manifest(plugin_root, expected_name)
+  manifest_path = File.join(plugin_root, ".codex-plugin", "plugin.json")
+  manifest = load_json(manifest_path)
+  raise "#{manifest_path}: placeholder remains" if contains_placeholder?(manifest)
+  name = require_non_empty_string(manifest, "name", manifest_path)
+  raise "#{manifest_path}: name must match plugin directory" unless name == expected_name
+
+  version = require_non_empty_string(manifest, "version", manifest_path)
+  unless version.match?(SEMVER_PATTERN)
+    raise "#{manifest_path}: version must use strict semver"
+  end
+  require_non_empty_string(manifest, "description", manifest_path)
+
+  author = manifest["author"]
+  raise "#{manifest_path}: author must be an object" unless author.is_a?(Hash)
+  require_non_empty_string(author, "name", "#{manifest_path}: author")
+
+  interface = manifest["interface"]
+  raise "#{manifest_path}: interface must be an object" unless interface.is_a?(Hash)
+  %w[displayName shortDescription longDescription developerName category].each do |key|
+    require_non_empty_string(interface, key, "#{manifest_path}: interface")
+  end
+  capabilities = interface["capabilities"]
+  unless capabilities.is_a?(Array) && capabilities.all? { |value| value.is_a?(String) && !value.strip.empty? }
+    raise "#{manifest_path}: interface.capabilities must be an array of strings"
+  end
+  default_prompt = interface["defaultPrompt"] || interface["default_prompt"]
+  unless default_prompt
+    raise "#{manifest_path}: interface default prompt is required"
+  end
+  valid_default_prompt =
+    (default_prompt.is_a?(String) && !default_prompt.strip.empty?) ||
+    (default_prompt.is_a?(Array) && (1..3).cover?(default_prompt.length) &&
+      default_prompt.all? { |value| value.is_a?(String) && !value.strip.empty? })
+  unless valid_default_prompt
+    raise "#{manifest_path}: interface default prompt must be a string or an array of 1-3 strings"
+  end
+
+  skills_path = require_non_empty_string(manifest, "skills", manifest_path)
+  skills_root = resolve_relative_directory(plugin_root, skills_path, "#{manifest_path}: skills")
+  [manifest, skills_root]
+end
+
+def validate_marketplace
+  marketplace = load_json(MARKETPLACE_PATH)
+  raise "#{MARKETPLACE_PATH}: placeholder remains" if contains_placeholder?(marketplace)
+  name = require_non_empty_string(marketplace, "name", MARKETPLACE_PATH)
+  raise "#{MARKETPLACE_PATH}: expected marketplace name #{EXPECTED_MARKETPLACE_NAME}" unless name == EXPECTED_MARKETPLACE_NAME
+
+  interface = marketplace["interface"]
+  raise "#{MARKETPLACE_PATH}: interface must be an object" unless interface.is_a?(Hash)
+  display_name = require_non_empty_string(interface, "displayName", "#{MARKETPLACE_PATH}: interface")
+  unless display_name == EXPECTED_MARKETPLACE_DISPLAY_NAME
+    raise "#{MARKETPLACE_PATH}: unexpected marketplace display name: #{display_name}"
+  end
+
+  entries = marketplace["plugins"]
+  raise "#{MARKETPLACE_PATH}: plugins must be a non-empty array" unless entries.is_a?(Array) && !entries.empty?
+
+  names = []
+  entries.each_with_index do |entry, index|
+    entry_path = "#{MARKETPLACE_PATH}: plugins[#{index}]"
+    raise "#{entry_path}: entry must be an object" unless entry.is_a?(Hash)
+
+    plugin_name = require_non_empty_string(entry, "name", entry_path)
+    raise "#{entry_path}: duplicate plugin name: #{plugin_name}" if names.include?(plugin_name)
+    names << plugin_name
+
+    source = entry["source"]
+    raise "#{entry_path}: source must be an object" unless source.is_a?(Hash)
+    raise "#{entry_path}: source.source must be local" unless source["source"] == "local"
+    source_path = require_non_empty_string(source, "path", "#{entry_path}: source")
+    plugin_root = resolve_relative_directory(ROOT, source_path, "#{entry_path}: source")
+    unless plugin_root.start_with?("#{File.realpath(PLUGINS_ROOT)}/")
+      raise "#{entry_path}: plugin source must resolve under plugins/"
+    end
+    unless File.basename(plugin_root) == plugin_name
+      raise "#{entry_path}: source directory must match plugin name"
+    end
+
+    policy = entry["policy"]
+    raise "#{entry_path}: policy must be an object" unless policy.is_a?(Hash)
+    installation = require_non_empty_string(policy, "installation", "#{entry_path}: policy")
+    authentication = require_non_empty_string(policy, "authentication", "#{entry_path}: policy")
+    unless ALLOWED_INSTALLATION_POLICIES.include?(installation)
+      raise "#{entry_path}: invalid installation policy: #{installation}"
+    end
+    unless ALLOWED_AUTHENTICATION_POLICIES.include?(authentication)
+      raise "#{entry_path}: invalid authentication policy: #{authentication}"
+    end
+    category = require_non_empty_string(entry, "category", entry_path)
+
+    if plugin_name == PLUGIN_NAME
+      raise "#{entry_path}: unexpected source path" unless source_path == EXPECTED_PLUGIN_SOURCE
+      raise "#{entry_path}: expected AVAILABLE installation policy" unless installation == "AVAILABLE"
+      raise "#{entry_path}: expected ON_INSTALL authentication policy" unless authentication == "ON_INSTALL"
+      raise "#{entry_path}: product gating is not approved" if policy.key?("products")
+      raise "#{entry_path}: unexpected category" unless category == EXPECTED_PLUGIN_CATEGORY
+    end
+
+    validate_plugin_manifest(plugin_root, plugin_name)
+  end
+
+  manifest_names = Dir.glob(File.join(PLUGINS_ROOT, "*", ".codex-plugin", "plugin.json"))
+    .map { |path| File.basename(File.dirname(File.dirname(path))) }
+    .sort
+  unless manifest_names == names.sort
+    raise "plugin inventory mismatch; marketplace=#{names.sort.inspect} manifests=#{manifest_names.inspect}"
+  end
+
+  puts "validated marketplace #{name} with #{entries.length} plugin"
+end
 
 def load_yaml(text, path)
   YAML.safe_load(text, permitted_classes: [], aliases: false) || {}
@@ -67,8 +241,8 @@ rescue Psych::SyntaxError => e
   raise "#{path}: invalid YAML: #{e.message.lines.first.strip}"
 end
 
-def validate_skill(name)
-  dir = File.join(SKILLS_ROOT, name)
+def validate_skill(skills_root, name)
+  dir = File.join(skills_root, name)
   skill_path = File.join(dir, "SKILL.md")
   interface_path = File.join(dir, "agents", "openai.yaml")
   expected_files = [skill_path, interface_path].sort
@@ -200,12 +374,23 @@ unless actual_skills == EXPECTED_SKILLS.sort
 end
 
 begin
-  EXPECTED_SKILLS.each { |name| validate_skill(name) }
+  validate_marketplace
+  manifest, declared_skills_root = validate_plugin_manifest(PLUGIN_ROOT, PLUGIN_NAME)
+  raise "#{PLUGIN_MANIFEST_PATH}: unexpected version" unless manifest["version"] == EXPECTED_PLUGIN_VERSION
+  unless manifest.dig("interface", "category") == EXPECTED_PLUGIN_CATEGORY
+    raise "#{PLUGIN_MANIFEST_PATH}: unexpected plugin category"
+  end
+  unless declared_skills_root == File.realpath(SKILLS_ROOT)
+    raise "#{PLUGIN_MANIFEST_PATH}: skills path must resolve to ./skills/"
+  end
+
+  EXPECTED_SKILLS.each { |name| validate_skill(SKILLS_ROOT, name) }
   validate_scenarios
 rescue StandardError => e
   warn "error: #{e.message}"
   exit 1
 end
 
+puts "validated plugin #{PLUGIN_NAME} at version #{EXPECTED_PLUGIN_VERSION}"
 puts "validated #{EXPECTED_SKILLS.length} skills"
 puts "validated #{EXPECTED_SCENARIOS.length} behavior scenario definitions"
