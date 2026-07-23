@@ -1,9 +1,9 @@
 ---
-name: superpowers-neo-testing-strategy
+name: superpowers-neo-validation-strategy
 description: Use when deciding what tests or other evidence a code, configuration, or documentation change needs, especially for bug fixes, risky behavior, unavailable hardware, or costly automation.
 ---
 
-# Neo Testing Strategy
+# Neo Validation Strategy
 
 ## Principle
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Git Delivery"
+  short_description: "Deliver completed Git changes with scoped defaults"
+  default_prompt: "Use $superpowers-neo-git-delivery to commit completed work and apply the task-branch push default while preserving protected delivery boundaries."

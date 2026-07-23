@@ -1,9 +1,9 @@
 ---
-name: superpowers-neo-finishing-a-development-branch
+name: superpowers-neo-git-delivery
 description: Use when feature or bug-fix work is complete in a Git repository, or when the user explicitly requests Git delivery such as a commit, push, pull request, merge, or cleanup
 ---
 
-# Finishing a Development Branch
+# Git Delivery
 
 ## Enter the Delivery Flow
 

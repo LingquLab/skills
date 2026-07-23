@@ -1,9 +1,9 @@
 ---
-name: superpowers-neo-brainstorming
+name: superpowers-neo-designing-complex-changes
 description: Use when a requested change is complex, has key ambiguity, spans components, has cross-component effects, or requires an architectural decision.
 ---
 
-# Superpowers Neo Brainstorming
+# Designing Complex Changes
 
 ## Purpose
 

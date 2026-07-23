@@ -1,8 +1,8 @@
-# Risk-Driven Testing
+# Risk-Driven Validation
 
 ## Skill Under Test
 
-- `superpowers-neo-testing-strategy`
+- `superpowers-neo-validation-strategy`
 
 ## Request A: Alternative Validation
 
