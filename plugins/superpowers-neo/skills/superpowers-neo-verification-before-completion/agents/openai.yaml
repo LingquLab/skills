@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Completion Verification"
+  short_description: "Verify current evidence before completion claims"
+  default_prompt: "Use $superpowers-neo-verification-before-completion to verify the current result before claiming completion."

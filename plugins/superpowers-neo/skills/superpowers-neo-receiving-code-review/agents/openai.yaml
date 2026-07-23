@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Receiving Review"
+  short_description: "Evaluate review feedback with technical evidence"
+  default_prompt: "Use $superpowers-neo-receiving-code-review to assess this review feedback against the code and requirements."

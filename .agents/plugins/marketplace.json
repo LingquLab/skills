@@ -1,0 +1,20 @@
+{
+  "name": "lingqulab",
+  "interface": {
+    "displayName": "LingquLab Skills"
+  },
+  "plugins": [
+    {
+      "name": "superpowers-neo",
+      "source": {
+        "source": "local",
+        "path": "./plugins/superpowers-neo"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Requesting Review"
+  short_description: "Request independent review when risk justifies it"
+  default_prompt: "Use $superpowers-neo-requesting-code-review to request a focused independent review of this change."

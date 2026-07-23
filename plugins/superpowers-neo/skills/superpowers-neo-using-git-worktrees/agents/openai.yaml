@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neo Git Worktrees"
+  short_description: "Decide when Git worktree isolation is needed"
+  default_prompt: "Use $superpowers-neo-using-git-worktrees to evaluate whether this work needs workspace isolation."
