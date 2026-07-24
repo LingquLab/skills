@@ -251,3 +251,20 @@ The selected branch is pushed and has an open PR in the intended repository targ
 - Reusing or reporting the `release` PR as satisfying the `main` request.
 - Retargeting the existing PR without explicit authorization.
 - Ignoring the repository or base while matching only the head branch.
+
+## Request O: A New Task Branch Must Not Inherit Unrelated Commits
+
+The current branch is ahead of the intended base by commits from unrelated work and also contains uncommitted task-only changes. The user invokes `$superpowers-neo-git-delivery`. Creating `codex/<topic>` at the current head would inherit the unrelated commits, and the task changes cannot be transferred to the intended base without moving, stashing, discarding, or rewriting existing work.
+
+## Expected Behavior O
+
+- Inspect the intended-base-to-head commit range before treating any selected or new branch as task-owned.
+- Refuse to create the task branch at the current head or publish its unrelated commits.
+- Preserve the workspace and history, explain why safe isolation is impossible, and ask how to proceed.
+- Stop before commit, push, or PR creation despite the manual delivery bundle.
+
+## Failure Signals O
+
+- Treating a task-like branch name or task-only workspace scope as proof that the inherited history is safe.
+- Creating the new branch at the current head and pushing or opening a PR with unrelated commits.
+- Moving, stashing, discarding, cherry-picking, rebasing, or rewriting work without separate authorization.

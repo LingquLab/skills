@@ -274,7 +274,7 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 
 - Under automatic entry, ask before creating or switching branches when the current branch is the default branch.
 - Under a direct named branch request, create or switch only as requested without asking again.
-- Under manual invocation, select an appropriate task branch or create and switch to one without another prompt. Verify its base and do not carry unrelated commits.
+- Under manual invocation, select an appropriate task branch or create and switch to one from its clean intended base without another prompt. Verify that the intended-base-to-head range contains only current-task commits; never inherit unrelated commits.
 - Use an existing development branch when appropriate.
 - For a new branch, follow user and repository conventions first; otherwise use `codex/<topic>` with lowercase hyphenated words.
 - Stop and ask if switching safely would require stashing, moving, overwriting, or discarding user-owned changes.
@@ -358,8 +358,9 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 15. Delivery reuses an open PR only when repository, head, and intended base all match.
 16. A ready PR is supported by verification of its exact committed head, not uncommitted working-tree content.
 17. When the task is already committed, delivery creates no empty commit and continues with the remaining authorized actions from the existing committed head.
-18. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
-19. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
+18. A selected or newly created task branch contains only current-task commits after its intended base; delivery stops when unrelated history cannot be isolated safely.
+19. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
+20. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
 
 ## 11. Validation Strategy
 
@@ -374,6 +375,6 @@ Implementation validation will include:
 - Bug-fix scenarios with both automated regression and justified alternative validation.
 - Review scenarios with valid, ambiguous, incorrect, and scope-expanding feedback.
 - Completion scenarios with passing tests, unavailable hardware, and unrelated baseline failures.
-- Delivery scenarios covering automatic defaults, exact named-action authorization, generic-delivery clarification, manual end-to-end authorization, already-committed clean branches, preservation of uncommitted changes, exact-head PR verification, repository/head/base PR reuse, task-branch creation and pushes, merges, hooks, and cleanup boundaries.
+- Delivery scenarios covering automatic defaults, exact named-action authorization, generic-delivery clarification, manual end-to-end authorization, already-committed clean branches, task-only commit ranges, preservation of uncommitted changes, exact-head PR verification, repository/head/base PR reuse, task-branch creation and pushes, merges, hooks, and cleanup boundaries.
 
 The original Superpowers plugin remains installed during Neo development and validation. Cutover occurs only after the user reviews the implemented skills and explicitly authorizes removal of the original plugin.
