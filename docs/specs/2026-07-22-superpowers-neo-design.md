@@ -36,7 +36,7 @@ Superpowers Neo will be a separate personal skill series. It keeps the useful pl
 4. Persistent implementation changes require the appropriate design approval when a design gate has triggered.
 5. Claims of completion must be supported by current evidence.
 6. Pre-existing user changes are preserved. Neo must not stash, move, overwrite, or discard them without explicit authorization, and a default commit may include only changes whose ownership as current task scope is established.
-7. Automatic delivery authorizes scoped task commits and normal pushes only from an established, task-owned non-default branch. Explicit manual invocation of Git delivery bundles authorization for current-task branch creation, scoped commit, normal push, and PR creation. Merge, history rewrite, force push, hook bypass, and cleanup retain explicit protection boundaries.
+7. Automatic delivery authorizes scoped task commits and normal pushes only from an established, task-owned non-default branch. A direct request authorizes only its named Git actions. Explicit manual invocation of Git delivery bundles authorization for current-task branch creation, scoped commit, normal push, and PR creation. Merge, history rewrite, force push, hook bypass, and cleanup retain explicit protection boundaries unless separately and specifically requested.
 8. Skills cross-reference only other `superpowers-neo-*` skills, never the original `superpowers:*` names.
 
 ## 5. Skill Inventory
@@ -257,7 +257,7 @@ Before claiming work is complete, fixed, or passing:
 
 Enter the delivery flow automatically when feature or bug-fix work completes in a Git repository. Do not enter when the user explicitly opts out. Ask when the task category is unclear. Non-Git work only receives a result summary.
 
-Keep two authority modes distinct. Automatic entry uses the conservative defaults below. When the user manually invokes `$superpowers-neo:superpowers-neo-git-delivery` or uses an equivalent explicit skill attachment, treat that invocation as bundled authorization to select or create and switch to a current-task branch, create a scoped commit, push that branch normally, and create a PR. Do not infer manual invocation from an automatic trigger, quoted text, or discussion of the skill. A narrower instruction overrides the bundle. Neither mode authorizes merge or destructive/high-risk Git actions.
+Keep three authority sources distinct. Automatic entry uses the conservative defaults below. A direct request for one or more Git actions authorizes exactly those named actions without a redundant prompt, overrides automatic defaults for unnamed actions, and does not imply the full bundle. When the user manually invokes `$superpowers-neo-git-delivery` or uses an equivalent explicit skill attachment, treat that invocation as bundled authorization to select or create and switch to a current-task branch, create a scoped commit, push that branch normally, and create a PR. Do not infer manual invocation from an automatic trigger, quoted text, or discussion of the skill. A narrower instruction overrides the bundle. Manual invocation does not authorize merge or destructive/high-risk Git actions.
 
 #### Commit boundary
 
@@ -273,6 +273,7 @@ Keep two authority modes distinct. Automatic entry uses the conservative default
 #### Branch boundary
 
 - Under automatic entry, ask before creating or switching branches when the current branch is the default branch.
+- Under a direct named branch request, create or switch only as requested without asking again.
 - Under manual invocation, select an appropriate task branch or create and switch to one without another prompt. Verify its base and do not carry unrelated commits.
 - Use an existing development branch when appropriate.
 - For a new branch, follow user and repository conventions first; otherwise use `codex/<topic>` with lowercase hyphenated words.
@@ -290,10 +291,12 @@ Keep two authority modes distinct. Automatic entry uses the conservative default
 - Push only the task branch and set upstream on first push.
 - A normal push is authorized by default when the current branch is an established, task-owned non-default branch. Confirm task ownership from repository guidance, history, tracking state, and workspace scope; a non-default branch name alone is insufficient.
 - Under automatic entry, when the current branch is not an established task-owned non-default branch, pushing requires explicit user instruction or explicit approval of a named plan action.
+- A direct named push request authorizes the exact normal push after verifying the target branch; it does not authorize commit or PR creation.
 - Under manual invocation, normally push only the selected current-task branch and set upstream on first push without another prompt.
 - Never force push automatically.
 - Allow only explicit, risk-confirmed `--force-with-lease`; never use bare `--force`.
 - Under automatic entry, PR creation requires explicit user instruction or explicit approval of that named action in a plan. Default push authority never implies PR authority.
+- A direct named PR request authorizes PR creation after readiness checks but does not authorize branch creation, commit, or merge.
 - Under manual invocation, create the PR after pushing without another authorization prompt.
 - Follow the repository PR template.
 - Without a template, include summary, verification, known risks, and the relevant spec.
@@ -345,9 +348,10 @@ Keep two authority modes distinct. Automatic entry uses the conservative default
 9. Completion claims distinguish confirmed checks, unavailable checks, and unrelated baseline failures.
 10. Automatically completed feature or fix work receives a scoped commit by default unless the user opts out, while a default-branch location still requires an explicit branch decision.
 11. An established task-owned non-default branch receives a normal push by default; automatic entry does not authorize a PR.
-12. Manual invocation of Git delivery authorizes current-task branch creation, scoped commit, normal push, and PR creation without redundant prompts.
-13. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected actions in both modes.
-14. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
+12. A direct request for a Git action authorizes that exact action without expanding to other delivery actions.
+13. Manual invocation of Git delivery authorizes current-task branch creation, scoped commit, normal push, and PR creation without redundant prompts.
+14. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
+15. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
 
 ## 11. Validation Strategy
 
@@ -362,6 +366,6 @@ Implementation validation will include:
 - Bug-fix scenarios with both automated regression and justified alternative validation.
 - Review scenarios with valid, ambiguous, incorrect, and scope-expanding feedback.
 - Completion scenarios with passing tests, unavailable hardware, and unrelated baseline failures.
-- Delivery scenarios covering automatic defaults, manual end-to-end authorization, task-branch creation and pushes, PRs, merges, hooks, and cleanup boundaries.
+- Delivery scenarios covering automatic defaults, exact named-action authorization, manual end-to-end authorization, task-branch creation and pushes, PRs, merges, hooks, and cleanup boundaries.
 
 The original Superpowers plugin remains installed during Neo development and validation. Cutover occurs only after the user reviews the implemented skills and explicitly authorizes removal of the original plugin.
