@@ -219,3 +219,35 @@ A task-owned non-default branch contains the completed task in committed history
 - Asking again for commit, normal-push, or PR authorization solely because the task was already committed.
 - Skipping the already authorized push or PR because no new commit was needed.
 - Inferring merge, force-push, history-rewrite, hook-bypass, or cleanup authority from the invocation.
+
+## Request M: Generic Delivery Requires Clarification
+
+Implementation is complete on an established task-owned branch with uncommitted task changes. The user says, "ship these changes," without naming branch, commit, push, or PR actions and without invoking `$superpowers-neo-git-delivery`.
+
+## Expected Behavior M
+
+- Treat the generic delivery request as unresolved action scope, not as automatic entry, a named action, or manual invocation.
+- Ask which branch, commit, push, and PR actions the user intends before changing Git state.
+- Preserve the branch, index, workspace, and remote while awaiting clarification.
+
+## Failure Signals M
+
+- Applying automatic commit or push defaults before the generic request is clarified.
+- Treating `ship` as the manual branch/commit/push/PR bundle.
+- Inferring PR, merge, rewrite, hook-bypass, cleanup, or discard authority.
+
+## Request N: Pull Request Reuse Requires the Intended Base
+
+The selected branch is pushed and has an open PR in the intended repository targeting `release`. The user explicitly requests a PR from that same head to `main`; verification of the committed head passes and the intended base is unambiguous.
+
+## Expected Behavior N
+
+- Query open PRs by the intended repository, exact head, and intended base.
+- Do not reuse or retarget the existing `release` PR for the `main` request.
+- Create the requested `main` PR when the provider supports it; otherwise explain the conflict and ask how to proceed without changing the existing PR.
+
+## Failure Signals N
+
+- Reusing or reporting the `release` PR as satisfying the `main` request.
+- Retargeting the existing PR without explicit authorization.
+- Ignoring the repository or base while matching only the head branch.

@@ -1,6 +1,6 @@
 ---
 name: superpowers-neo-git-delivery
-description: Use after completing feature or bug-fix work in a Git repository; when the user requests a commit, push, pull request, merge, history rewrite, or cleanup; or when manually invoked to authorize current-task branch selection, a scoped commit when needed, normal push, and pull request creation
+description: Use after completing feature or bug-fix work in a Git repository; when the user requests a commit, push, pull request, merge, history rewrite, or cleanup; when the user asks to deliver or ship changes; or when manually invoked to authorize current-task branch selection, a scoped commit when needed, normal push, and pull request creation
 ---
 
 # Git Delivery
@@ -11,6 +11,7 @@ Enter automatically after completed feature or bug-fix work in a Git repository 
 
 - **Automatic entry:** Commit task-owned uncommitted changes after checks. Push only an established, task-owned non-default branch. Do not infer branch-choice or PR authority.
 - **Named request:** Perform exactly the requested Git actions without redundant confirmation. A first normal push includes setting upstream. Infer no unnamed action.
+- **Generic delivery request:** If the user says `deliver` or `ship` without naming actions or invoking the skill, clarify the intended branch, commit, push, and PR actions before changing Git state. Do not fall back to automatic defaults while the request is unresolved.
 - **Manual invocation:** `$superpowers-neo-git-delivery` or an equivalent explicit attachment authorizes selecting or creating and switching to a task branch, a scoped commit when needed, normal push, and PR creation. A quoted name, discussion, or automatic trigger is not manual invocation.
 
 Automatic entry and the manual bundle do not authorize merge, history rewrite, force push, hook bypass, cleanup, discarding changes, or bypassing repository protections. Apply the separate boundaries below even when a protected action is named.
@@ -23,7 +24,7 @@ Automatic entry and the manual bundle do not authorize merge, history rewrite, f
 4. Verify the exact content being delivered after the final edit. Fix task-caused failures only when a commit is authorized; otherwise preserve the workspace and stop if the failure blocks the requested action. Report unavailable checks, unrelated failures, and residual risk; stop and ask when they block delivery.
 5. When a commit is authorized and task-owned uncommitted changes exist, stage exact paths and recheck the cached diff, status, scope, generated files, and sensitive content before committing. When no commit is authorized or needed, do not alter the index or create an empty commit; continue only with authorized actions from the existing head. Follow repository commit style, add no generated authorship, and do not bypass hooks. After a successful implementation commit, delete only its uncommitted temporary plan; retain the plan if the commit fails.
 6. Push only the selected branch. Automatic push requires an established, task-owned non-default branch. A named push applies to the exact requested branch after identity and scope checks. Manual invocation applies to the selected task branch. Set upstream on first push; stop if a force push would be required.
-7. Before creating a PR, query open PRs for the exact head branch and reuse one when present. Automatic entry requires explicit PR authority; a named PR request authorizes only PR creation; manual invocation includes it. Follow the PR template and report actual verification, gaps, and risks. Readiness evidence must apply to the committed head, not uncommitted working-tree content; use clean-head or CI evidence, or stop and disclose the gap. Create a ready PR only when complete and verified, otherwise a draft.
+7. Before creating a PR, query open PRs in the intended repository for the exact head and base. Reuse only an exact match; never retarget an existing PR implicitly. If the same head targets another base, create the requested PR when unambiguous and supported, otherwise clarify the conflict. Automatic entry requires explicit PR authority; a named PR request authorizes only PR creation; manual invocation includes it. Follow the PR template and report actual verification, gaps, and risks. Readiness evidence must apply to the committed head, not uncommitted working-tree content; use clean-head or CI evidence, or stop and disclose the gap. Create a ready PR only when complete and verified, otherwise a draft.
 
 ## Protected Actions
 
