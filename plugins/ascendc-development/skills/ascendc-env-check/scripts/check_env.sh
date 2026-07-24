@@ -3,6 +3,8 @@
 
 set -u
 
+script_dir=$(cd -P "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
+
 if [[ -t 1 ]]; then
     RED='\033[0;31m'
     GREEN='\033[0;32m'
@@ -189,6 +191,26 @@ elif [[ -n "$toolkit_root" ]]; then
     warn "CANN version metadata was not found below the selected toolkit root: $toolkit_root"
 else
     info 'CANN version check is unavailable without a discovered toolkit root'
+fi
+
+if [[ -n "$toolkit_root" ]]; then
+    state_inspector="$script_dir/inspect_cann_state.py"
+    if [[ -f "$state_inspector" ]] && command -v python3 >/dev/null 2>&1; then
+        info 'bounded component metadata inventory follows'
+        state_output=''
+        if state_output=$(python3 "$state_inspector" --toolkit-root "$toolkit_root" 2>&1); then
+            printf '%s\n' "$state_output"
+            state_warning_count=$(printf '%s\n' "$state_output" | awk '/^\[warn\]/ { count++ } END { print count + 0 }')
+            warnings=$((warnings + state_warning_count))
+        else
+            printf '%s\n' "$state_output"
+            warn 'component metadata inventory failed; inspect the helper error separately'
+        fi
+    elif [[ ! -f "$state_inspector" ]]; then
+        warn "component metadata inspector is missing: $state_inspector"
+    else
+        warn 'python3 is unavailable; component metadata inventory was skipped'
+    fi
 fi
 
 opp_path=${ASCEND_OPP_PATH:-}

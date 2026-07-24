@@ -1,7 +1,7 @@
 {
   "name": "ascendc-development",
-  "version": "0.1.0",
-  "description": "Version-aware Ascend C development, review, documentation, environment, and CANN setup workflows.",
+  "version": "0.2.0",
+  "description": "Version-aware Ascend C operator development, review, documentation, environment, CANN setup, and runtime debugging workflows.",
   "author": {
     "name": "LingquLab",
     "url": "https://github.com/LingquLab"
@@ -12,15 +12,13 @@
   "keywords": [
     "Ascend C",
     "CANN",
-    "NPU",
-    "code review",
-    "environment diagnostics"
+    "operator development and runtime debugging"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Ascend C Development",
-    "shortDescription": "Build, review, document, and diagnose Ascend C software.",
-    "longDescription": "Develop and review Ascend C kernels with version-matched API guidance, authoritative documentation search, read-only NPU environment diagnostics, and guarded CANN setup workflows.",
+    "shortDescription": "Develop, review, and debug version-matched Ascend C software.",
+    "longDescription": "Develop complete Ascend C operators, review Host, Tiling, Kernel, and support code, find version-matched API evidence, diagnose runtime failures from bounded evidence, inspect NPU environments read-only, and plan guarded CANN setup workflows.",
     "developerName": "LingquLab",
     "category": "Developer Tools",
     "capabilities": [
@@ -29,9 +27,9 @@
     ],
     "websiteURL": "https://github.com/LingquLab/skills",
     "defaultPrompt": [
-      "Find the version-matched Ascend C API guidance for this issue.",
-      "Review this Ascend C change for correctness and compatibility.",
-      "Check this host's CANN and NPU environment."
+      "Develop or migrate this Ascend C operator through a version-matched invocation path and layered validation.",
+      "Review this Ascend C change using target-version API, Host, Tiling, Kernel, and build evidence.",
+      "Diagnose this CANN runtime failure from bounded logs and the actual package, Tiling, launch, and stream path."
     ]
   }
 }

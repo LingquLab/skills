@@ -243,14 +243,15 @@ CopyInBatch(N行) → 逐行计算(N次) → CopyOutBatch(N行)
 ```cpp
 __aicore__ inline void ProcessBatch()
 {
+    if (endRow <= startRow) return;
     uint32_t totalRowsToProcess = endRow - startRow;
-    if (totalRowsToProcess == 0) return;
 
     for (uint32_t tile = 0; tile < tilesPerCore; tile++) {
-        uint32_t startLocalRow = tile * tileRows;
+        uint64_t startLocalRow64 = static_cast<uint64_t>(tile) * tileRows;
 
-        // 边界检查：防止 uint32_t 下溢
-        if (startLocalRow >= totalRowsToProcess) break;
+        // 在窄化前比较，避免 tile * tileRows 的 uint32_t 回绕。
+        if (startLocalRow64 >= totalRowsToProcess) break;
+        uint32_t startLocalRow = static_cast<uint32_t>(startLocalRow64);
 
         uint32_t remaining = totalRowsToProcess - startLocalRow;
         uint32_t rowsThisTile = (remaining < tileRows) ? remaining : tileRows;
@@ -265,15 +266,44 @@ __aicore__ inline void ProcessBatch()
 ### Host 侧 Tiling 计算
 
 ```cpp
-// 从目标 SoC 平台信息或 Tiling 上下文获取可用 UB，不要写死容量。
-uint64_t ubSize = GetTargetUbSize();
-// bytesPerTileRow: double buffer (in*2 + out*2)
-uint32_t bytesPerTileRow = paddedColsT * typeSizeBytes * 4;
+#include <limits>
 
-// tileRows
-uint32_t tileRows = (ubSize - overheadBytes) / bytesPerTileRow;
-tileRows = std::max(1u, tileRows);
+// 从目标 SoC 平台信息或 Tiling 上下文获取可用 UB，不要写死容量。
+const uint64_t ubSize = GetTargetUbSize();
+
+auto checkedMul = [](uint64_t lhs, uint64_t rhs, uint64_t &out) -> bool {
+    if (lhs != 0 && rhs > std::numeric_limits<uint64_t>::max() / lhs) {
+        return false;
+    }
+    out = lhs * rhs;
+    return true;
+};
+
+uint64_t rowBytes = 0;
+uint64_t bytesPerTileRow = 0;
+const bool validSize =
+    paddedColsT != 0 && typeSizeBytes != 0 &&
+    checkedMul(static_cast<uint64_t>(paddedColsT),
+               static_cast<uint64_t>(typeSizeBytes), rowBytes) &&
+    checkedMul(rowBytes, 4, bytesPerTileRow);  // double buffer: in*2 + out*2
+
+// Return the framework's explicit Tiling failure status here. A fabricated
+// one-row tile would exceed UB and turn an invalid shape into memory corruption.
+if (!validSize || overheadBytes >= ubSize || bytesPerTileRow == 0) {
+    return TILING_FAILED;
+}
+
+const uint64_t usableBytes = ubSize - overheadBytes;
+const uint64_t tileRows64 = usableBytes / bytesPerTileRow;
+if (tileRows64 == 0 || tileRows64 > std::numeric_limits<uint32_t>::max()) {
+    return TILING_FAILED;
+}
+const uint32_t tileRows = static_cast<uint32_t>(tileRows64);
 ```
+
+`TILING_FAILED` is a placeholder for the target framework's documented failure
+status. Keep every multiplicand wide before multiplication; checking only after
+assigning a narrow product is too late.
 
 If the selected transfer overload documents a block-count limit, clamp
 `tileRows` to that verified value after the UB calculation. Do not introduce a

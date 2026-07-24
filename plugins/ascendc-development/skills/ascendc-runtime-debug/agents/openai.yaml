@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ascend C Runtime Debugging"
+  short_description: "Diagnose Ascend C runtime, launch, and kernel failures"
+  default_prompt: "Use $ascendc-runtime-debug to diagnose this Ascend C runtime failure from logs, error codes, and the actual call path."

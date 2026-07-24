@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ascend C Operator Development"
+  short_description: "Build Ascend C operators through verified lifecycle gates"
+  default_prompt: "Use $ascendc-operator-development to plan and implement this Ascend C operator with version-matched contracts and validation."

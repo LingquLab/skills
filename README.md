@@ -23,7 +23,7 @@ Start a new Codex task after installation so newly installed skills are discover
 | Plugin | Description | Version |
 |---|---|---|
 | `superpowers-neo` | Pragmatic software-development workflows with rigor scaled to task complexity and risk | `0.2.0` |
-| `ascendc-development` | Version-aware Ascend C API, review, documentation, diagnostics, and CANN setup workflows | `0.1.0` |
+| `ascendc-development` | Version-aware Ascend C operator development, API guidance, review, diagnostics, and CANN setup workflows | `0.2.0` |
 
 ## Ascend C Development
 
@@ -33,7 +33,7 @@ Install the plugin from the marketplace:
 codex plugin add ascendc-development@lingqulab
 ```
 
-The plugin contains five independently triggered skills:
+The plugin contains seven independently triggered skills:
 
 | Skill | Use when |
 |---|---|
@@ -41,9 +41,11 @@ The plugin contains five independently triggered skills:
 | `ascendc-code-review` | Reviewing Host, Tiling, Kernel, SIMT, build, or operator changes |
 | `ascendc-docs-search` | Locating version-matched local or official Ascend C documentation and examples |
 | `ascendc-env-check` | Performing read-only CANN environment and NPU visibility diagnostics |
+| `ascendc-operator-development` | Developing or migrating a complete registered or direct-launch Ascend C operator through layered validation |
+| `ascendc-runtime-debug` | Diagnosing runtime, Tiling, launch, device-exception, hang, precision, or performance failures from bounded evidence |
 | `cann-env-setup` | Planning or carrying out a guarded, version-matched CANN installation or repair |
 
-These skills are adapted from TileXR's Claude skills at source commit `1e2619e793b5894a1aec2d7d6897dbe5f7c501c0`. Claude-specific tool calls, fixed environment assumptions, destructive diagnostic commands, and the duplicate `commit-push-pr` skill are intentionally not shipped. Useful online workflows remain scripted: one dependency-free client searches and fetches Huawei's official documentation, and another obtains public GitCode PR diffs through bounded shallow fetches. See the [migration audit](docs/specs/2026-07-23-ascendc-development-migration.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
+The original five skills are adapted from TileXR's Claude skills at source commit `1e2619e793b5894a1aec2d7d6897dbe5f7c501c0`. The operator-development and runtime-debugging workflows extend that baseline without importing cannBot automation. Claude-specific tool calls, fixed environment assumptions, destructive diagnostic commands, and the duplicate `commit-push-pr` skill are intentionally not shipped. Useful online workflows remain scripted: one dependency-free client searches and fetches Huawei's official documentation, and another obtains public GitCode PR diffs through bounded shallow fetches. See the [migration audit](docs/specs/2026-07-23-ascendc-development-migration.md), [expansion plan](docs/plans/2026-07-24-ascendc-development-expansion.md), and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Superpowers Neo
 
@@ -86,9 +88,9 @@ ruby -c scripts/validate-skills.rb
 bash -n scripts/install.sh
 ```
 
-It checks the marketplace catalog, both plugin manifests and paths, all ten Superpowers Neo skill packages, all five Ascend C Development skill packages, relative documentation links, and all nine behavior scenario definitions.
+It checks the marketplace catalog, both plugin manifests and paths, all ten Superpowers Neo skill packages, all seven Ascend C Development skill packages, relative documentation links, nine Superpowers Neo scenarios, and two Ascend C Development scenarios.
 
-Behavioral validation is a fresh-agent evaluation. Give a new agent only the relevant `SKILL.md` files and the request section from one file under `tests/superpowers-neo/scenarios/`, then compare the response with its expected behaviors and failure signals. Do not include the expected result in the agent prompt.
+Behavioral validation is a fresh-agent evaluation. Give a new agent only the relevant `SKILL.md` files and the request section from one file under `tests/<plugin-name>/scenarios/`, then compare the response with its expected behaviors and failure signals. Do not include the expected result in the agent prompt.
 
 Before publishing a plugin change, also run the current validator supplied by Codex's installed `plugin-creator` skill against that plugin directory. This catches schema changes that may be newer than the repository validator.
 

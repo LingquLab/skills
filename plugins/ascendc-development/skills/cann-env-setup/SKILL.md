@@ -13,8 +13,8 @@ Treat installation commands and version matrices as time-sensitive. Verify them 
 2. Check device and existing environment state with `$ascendc-env-check` when available.
 3. Determine the exact CANN release and package set required by the workload. Use the sibling `$ascendc-docs-search` script to retrieve the selected release's official installation guide, package list, and release notes; record the direct URLs and returned document version.
 4. Verify driver, firmware, toolkit, ops, compiler, Python, OS, architecture, and SoC compatibility from those version-matched sources. Do not apply commands from an unmatched search result.
-5. Choose the supported installation channel for that release: vendor run packages, official package repositories, containers, or another documented method. Do not mix components from different releases without an explicit compatibility statement.
-6. Build an exact package plan. For each component, record its role, exact filename or repository package name, release, architecture or SoC variant, source URL/repository, published checksum or signature, destination, privilege requirement, dependencies, and rollback method.
+5. Choose the supported installation channel for that release: vendor run packages, official package repositories, containers, or another documented method. Component version strings can differ in a supported release; require the selected release's official component constraints instead of either forcing equality or accepting a mismatch by guess.
+6. Build an exact package plan. For each component, record its component ID and broad role, exact filename or repository package name, release, architecture or SoC variant, source URL/repository, published checksum or signature, destination, privilege requirement, dependencies, and rollback method.
 
 Read `references/env-dependencies.md` for the dependency-inventory process. Treat commands there as examples to adapt to the detected OS, not as unconditional installation commands.
 
@@ -22,20 +22,20 @@ Resolve `<skill-dir>` as the directory containing this `SKILL.md`. For offline
 artifacts, reject ambiguous glob selections before installation:
 
 ```bash
-python3 <skill-dir>/scripts/inspect_packages.py --directory <download-directory> \
-  --require-role toolkit --require-role ops \
-  --expected-version <exact-release-token> --sha256
+python3 '<skill-dir>/scripts/inspect_packages.py' --directory '<download-directory>' \
+  --require-component toolkit --require-component ops-nn \
+  --expected-version '<exact-release-token>' --sha256
 ```
 
-The script requires the expected release to appear as an exact underscore-delimited version field; it is still only a filename and local-integrity check, not compatibility proof. If it reports multiple candidates for one recognized role, select the exact SoC/release artifacts explicitly and rerun it with only those file paths.
+The script recognizes current specific component hints such as `asc-devkit`, `asc-tools`, `ops-nn`, `ops-transformer`, and `ops-tensor` before broad roles. It checks ambiguity only for roles or components explicitly required by the command, so independent operator components are not rejected merely because they share the broad `ops` role. Combined or unfamiliar package names remain `unknown` until the official package plan identifies them. It rejects symlinks and non-regular files and caps each inspected artifact at 16 GiB, including while hashing. Filename and local-integrity checks are not compatibility proof.
 
 ## Official Evidence
 
 Resolve the documentation-search script relative to this skill's sibling and query the release requested by the user:
 
 ```bash
-python3 <skill-dir>/../ascendc-docs-search/scripts/search_ascend_docs.py \
-  'CANN installation package toolkit ops' --version <release> \
+python3 '<skill-dir>/../ascendc-docs-search/scripts/search_ascend_docs.py' \
+  'CANN installation package toolkit ops' --version '<release>' \
   --fetch --max-results 5
 ```
 
@@ -58,7 +58,7 @@ Do not install from a shell glob, the first item returned by `ls`, or a director
 After installation or repair, verify in layers:
 
 1. Local artifact checksum/signature or installed package-manager identity matches the approved plan.
-2. Package files and version metadata exist at the selected path and agree on the selected release.
+2. Package files and version metadata exist at the selected path and satisfy the selected release's official component constraints; record differing version text without calling it incompatible by itself.
 3. In a disposable shell, the vendor environment script sets paths that resolve to real directories and libraries.
 4. Read-only driver and NPU diagnostics succeed on the target host.
 5. A minimal compile uses the intended compiler and headers.
