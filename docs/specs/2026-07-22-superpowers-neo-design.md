@@ -275,6 +275,7 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 - Under automatic entry, ask before creating or switching branches when the current branch is the default branch.
 - Under a direct named branch request, create or switch only as requested without asking again.
 - Under manual invocation, select an appropriate task branch or create and switch to one from its clean intended base without another prompt. Verify that the intended-base-to-head range contains only current-task commits; never inherit unrelated commits.
+- For already-committed work, create a task branch only when a task-owned commit range remains outside the intended base. If none exists, report that the work is integrated and skip branch, push, and PR creation.
 - Use an existing development branch when appropriate.
 - For a new branch, follow user and repository conventions first; otherwise use `codex/<topic>` with lowercase hyphenated words.
 - Stop and ask if switching safely would require stashing, moving, overwriting, or discarding user-owned changes.
@@ -302,6 +303,7 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 - If the same head already targets a different base, create the requested PR when unambiguous and supported; otherwise clarify the conflict while preserving the existing PR.
 - Under manual invocation, reuse the exact repository/head/base match or create the requested PR after pushing without another authorization prompt.
 - PR readiness evidence must apply to the exact committed head. Do not rely on checks run against uncommitted working-tree changes; use clean-head evidence or stop and disclose the verification gap.
+- The verified commit must match the selected remote PR head SHA. If a PR-only request leaves a newer local head unpushed, verify the actual remote head or disclose the divergence and stop; create only an appropriately qualified draft when useful.
 - Follow the repository PR template.
 - Without a template, include summary, verification, known risks, and the relevant spec.
 - Create a ready PR when implementation and verification are complete.
@@ -359,8 +361,10 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 16. A ready PR is supported by verification of its exact committed head, not uncommitted working-tree content.
 17. When the task is already committed, delivery creates no empty commit and continues with the remaining authorized actions from the existing committed head.
 18. A selected or newly created task branch contains only current-task commits after its intended base; delivery stops when unrelated history cannot be isolated safely.
-19. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
-20. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
+19. PR readiness evidence applies to the selected remote head SHA, never only to a newer unpushed local commit.
+20. Already-integrated work creates no empty task branch, push, or PR.
+21. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
+22. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
 
 ## 11. Validation Strategy
 
@@ -375,6 +379,6 @@ Implementation validation will include:
 - Bug-fix scenarios with both automated regression and justified alternative validation.
 - Review scenarios with valid, ambiguous, incorrect, and scope-expanding feedback.
 - Completion scenarios with passing tests, unavailable hardware, and unrelated baseline failures.
-- Delivery scenarios covering automatic defaults, exact named-action authorization, generic-delivery clarification, manual end-to-end authorization, already-committed clean branches, task-only commit ranges, preservation of uncommitted changes, exact-head PR verification, repository/head/base PR reuse, task-branch creation and pushes, merges, hooks, and cleanup boundaries.
+- Delivery scenarios covering automatic defaults, exact named-action authorization, generic-delivery clarification, manual end-to-end authorization, already-committed clean branches, already-integrated work, task-only commit ranges, preservation of uncommitted changes, local/remote exact-head PR verification, repository/head/base PR reuse, task-branch creation and pushes, merges, hooks, and cleanup boundaries.
 
 The original Superpowers plugin remains installed during Neo development and validation. Cutover occurs only after the user reviews the implemented skills and explicitly authorizes removal of the original plugin.
