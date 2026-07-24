@@ -52,6 +52,16 @@ class SearchAscendDocsTest(unittest.TestCase):
         request = opener.call_args.args[0]
         self.assertEqual(request.get_header("Referer"), "https://www.hiascend.com/")
 
+    def test_body_read_timeout_is_a_document_error(self) -> None:
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.geturl.return_value = "https://www.hiascend.com/document/detail/example.html"
+        response.headers.get_content_charset.return_value = "utf-8"
+        response.read.side_effect = TimeoutError("timed out")
+        with mock.patch.object(SEARCH.OFFICIAL_OPENER, "open", return_value=response):
+            with self.assertRaisesRegex(SEARCH.DocsSearchError, "request timed out"):
+                SEARCH._get("https://www.hiascend.com/document/detail/example.html", 1)
+
     def test_official_url_transforms_source_path_and_encodes_unicode(self) -> None:
         actual = SEARCH._official_url(
             "/source/zh/CANNCommunityEdition/910beta3/API/ascendcopapi/"

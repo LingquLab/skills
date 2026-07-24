@@ -247,6 +247,8 @@ def _get(url: str, timeout: float, *, search_request: bool = False) -> tuple[byt
         raise DocsSearchError(f"HTTP {exc.code} for {url}") from exc
     except URLError as exc:
         raise DocsSearchError(f"request failed for {url}: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise DocsSearchError(f"request timed out for {url}") from exc
 
 
 _VERSION_RE = re.compile(
