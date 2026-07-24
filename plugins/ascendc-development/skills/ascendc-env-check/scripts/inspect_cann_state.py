@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import stat
 import sys
 from typing import Any, Iterable
@@ -44,6 +45,10 @@ SOC_FIELD_NAMES = {
 }
 NPU_ARCH_FIELD_NAMES = {"npuarch"}
 DRIVER_VERSION_FIELD_NAMES = {"driverversion"}
+PLAIN_RELEASE_PATTERN = re.compile(
+    r"^(?:CANN(?:CommunityEdition)?[ _-]+)?(?P<version>v?\d+(?:[._-][0-9A-Za-z]+)+)$",
+    re.IGNORECASE,
+)
 
 
 class InspectionInputError(Exception):
@@ -223,6 +228,18 @@ def unique_values(claims: Iterable[dict[str, Any]]) -> list[str]:
     return sorted(values_by_normalized_form.values(), key=str.casefold)
 
 
+def first_plain_release(text: str) -> tuple[str | None, int | None]:
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        if line_number > MAX_PARSED_LINES:
+            break
+        line = raw_line.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        match = PLAIN_RELEASE_PATTERN.fullmatch(line)
+        return (match.group("version"), line_number) if match else (None, line_number)
+    return None, None
+
+
 def scan_directory_names(
     directory: pathlib.Path,
     diagnostics: list[dict[str, Any]],
@@ -262,7 +279,7 @@ def scan_components(
     candidate_count = 0
     for name in scan_directory_names(resolved_base, diagnostics, code_prefix="component"):
         candidate = share_info / name / "version.info"
-        if not candidate.exists():
+        if not candidate.exists() and not candidate.is_symlink():
             continue
         if candidate_count >= MAX_COMPONENT_FILES:
             diagnostic(
@@ -298,11 +315,6 @@ def scan_components(
                 path=candidate,
             )
 
-        requirements = {
-            key: value
-            for key, value, _ in fields
-            if key.casefold().startswith("required_package_")
-        }
         resolved_key = str(resolved)
         if resolved_key in by_resolved_path:
             existing = by_resolved_path[resolved_key]
@@ -326,6 +338,41 @@ def scan_components(
                 "field": key,
                 "line": line,
             }
+        requirement_claims: list[dict[str, Any]] = []
+        claims_by_key: dict[str, list[dict[str, Any]]] = {}
+        for key, value, line in fields:
+            if not key.casefold().startswith("required_package_"):
+                continue
+            claim = {
+                "field": key,
+                "value": value,
+                "provenance": {
+                    "source_kind": "component_metadata",
+                    "path": str(candidate),
+                    "resolved_path": resolved_key,
+                    "field": key,
+                    "line": line,
+                },
+            }
+            requirement_claims.append(claim)
+            claims_by_key.setdefault(key.casefold(), []).append(claim)
+
+        requirements: dict[str, str] = {}
+        requirement_conflicts: dict[str, list[str]] = {}
+        for key_claims in claims_by_key.values():
+            display_key = str(key_claims[0]["field"])
+            values = unique_values(key_claims)
+            if len(values) == 1:
+                requirements[display_key] = values[0]
+                continue
+            requirement_conflicts[display_key] = values
+            diagnostic(
+                diagnostics,
+                "component_requirement_conflict",
+                f"component requirement {display_key} has conflicting values: "
+                + ", ".join(values),
+                path=candidate,
+            )
         component = {
             "component_id": name,
             "component_id_aliases": [],
@@ -335,6 +382,10 @@ def scan_components(
             "resolved_path": resolved_key,
             "aliases": [],
             "requirements": dict(sorted(requirements.items(), key=lambda item: item[0].casefold())),
+            "requirement_claims": requirement_claims,
+            "requirement_conflicts": dict(
+                sorted(requirement_conflicts.items(), key=lambda item: item[0].casefold())
+            ),
             "version_text_relation": "unknown",
         }
         components.append(component)
@@ -367,14 +418,18 @@ def scan_release_claims(
             field, _, line = versions[0]
             value = version_values[0]
         elif not version_values and allow_plain_text:
-            plain_lines = [
-                line.strip()
-                for line in text.splitlines()[:MAX_PARSED_LINES]
-                if line.strip() and not line.lstrip().startswith(("#", ";"))
-            ]
-            if not plain_lines:
+            value, line = first_plain_release(text)
+            if line is None:
                 continue
-            field, value, line = "<first-nonempty-line>", plain_lines[0], 1
+            if value is None:
+                diagnostic(
+                    diagnostics,
+                    "toolkit_release_plain_text_invalid",
+                    "first non-comment line is not a release-shaped version token",
+                    path=candidate,
+                )
+                continue
+            field = "<first-nonempty-line>"
         elif len(version_values) > 1:
             diagnostic(
                 diagnostics,
@@ -630,11 +685,15 @@ def parse_npu_capture(
 
     soc_claims: list[dict[str, Any]] = []
     driver_claims: list[dict[str, Any]] = []
+    json_candidate = text.lstrip("\ufeff \t\r\n")
+    looks_like_json = json_candidate.startswith(("{", "["))
+    json_parsed = True
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
+        json_parsed = False
         payload = None
-    if payload is not None:
+    if json_parsed:
         capture_format = "json"
         if isinstance(payload, dict):
             soc_claims, driver_claims = parse_json_capture(payload, capture_path)
@@ -647,6 +706,15 @@ def parse_npu_capture(
                 "JSON NPU capture root is not an object; no hardware claim was inferred",
                 path=capture_path,
             )
+    elif looks_like_json:
+        capture_format = "json"
+        capture_status = "unrecognized"
+        diagnostic(
+            diagnostics,
+            "capture_json_invalid",
+            "JSON-looking NPU capture is malformed; no hardware claim was inferred",
+            path=capture_path,
+        )
     else:
         capture_format = "key_value_text"
         fields = parse_key_values(text)

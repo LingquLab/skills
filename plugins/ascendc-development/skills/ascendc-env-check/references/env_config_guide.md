@@ -45,10 +45,13 @@ Current combined and independent installations can expose component metadata at 
 - component ID and metadata path;
 - resolved path and in-root aliases, including a `compiler/version.info` symlink;
 - `Version` and its exact field/line provenance;
-- `required_package_*` fields separately from the component's own version;
+- `required_package_*` fields separately from the component's own version, with every
+  source claim retained in `requirement_claims`;
 - whether version text is equal, different, or unknown relative to a resolved toolkit claim.
 
-Equal/different is only a text relation. Compatibility must come from the selected release's official component constraints. Refuse symlinks outside the selected toolkit root and report conflicting or oversized metadata instead of selecting the first claim.
+`requirements` contains only keys with one distinct value. Conflicting values are
+omitted from that map, retained in `requirement_conflicts`, and reported as diagnostics.
+Equal/different is only a text relation. Compatibility must come from the selected release's official component constraints. Refuse symlinks outside the selected toolkit root and report conflicting, dangling, or oversized metadata instead of selecting the first claim.
 
 ## SoC and NpuArch Evidence
 

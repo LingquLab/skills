@@ -79,6 +79,8 @@ class CannStateInspectorTest(unittest.TestCase):
         )
         devkit = payload["components"][0]
         self.assertEqual(devkit["requirements"], {"required_package_runtime_version": "9.1.0"})
+        self.assertEqual(devkit["requirement_conflicts"], {})
+        self.assertEqual(len(devkit["requirement_claims"]), 1)
         self.assertEqual(devkit["version_provenance"]["source_kind"], "component_metadata")
         self.assertEqual(payload["driver"]["resolved_version"], "25.5.0")
         self.assertEqual(payload["soc"]["runtime_value"], "Ascend910B3")
@@ -131,6 +133,87 @@ class CannStateInspectorTest(unittest.TestCase):
         diagnostic_codes = {item["code"] for item in payload["diagnostics"]}
         self.assertIn("toolkit_release_file_conflict", diagnostic_codes)
         self.assertIn("toolkit_release_conflict", diagnostic_codes)
+
+    def test_plain_version_cfg_must_contain_a_release_shaped_token(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = pathlib.Path(temporary)
+            invalid_root = base / "invalid-cann"
+            invalid_root.mkdir()
+            (invalid_root / "version.cfg").write_text(
+                "# package metadata\n[package]\nInstall_Path=/opt/cann\n",
+                encoding="utf-8",
+            )
+            valid_root = base / "valid-cann"
+            valid_root.mkdir()
+            (valid_root / "version.cfg").write_text(
+                "; release\n8.3.RC1\n",
+                encoding="utf-8",
+            )
+
+            invalid_completed, invalid_payload = self.run_inspector(invalid_root)
+            valid_completed, valid_payload = self.run_inspector(valid_root)
+
+        self.assertEqual(invalid_completed.returncode, 0, invalid_completed.stderr)
+        self.assertIsNone(invalid_payload["toolkit"]["resolved_release"])
+        self.assertEqual(invalid_payload["toolkit"]["release_status"], "unknown")
+        self.assertIn(
+            "toolkit_release_plain_text_invalid",
+            {item["code"] for item in invalid_payload["diagnostics"]},
+        )
+        self.assertEqual(valid_completed.returncode, 0, valid_completed.stderr)
+        self.assertEqual(valid_payload["toolkit"]["resolved_release"], "8.3.RC1")
+        self.assertEqual(
+            valid_payload["toolkit"]["release_claims"][0]["provenance"]["line"], 2
+        )
+
+    def test_conflicting_component_requirements_are_not_selected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            write_version(
+                root / "share/info/runtime/version.info",
+                "9.1.0",
+                "required_package_driver_version=25.3\n"
+                "required_package_driver_version=25.5\n",
+            )
+
+            completed, payload = self.run_inspector(root)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        component = payload["components"][0]
+        self.assertNotIn("required_package_driver_version", component["requirements"])
+        self.assertEqual(
+            component["requirement_conflicts"],
+            {"required_package_driver_version": ["25.3", "25.5"]},
+        )
+        self.assertEqual(
+            [claim["provenance"]["line"] for claim in component["requirement_claims"]],
+            [2, 3],
+        )
+        self.assertIn(
+            "component_requirement_conflict",
+            {item["code"] for item in payload["diagnostics"]},
+        )
+
+    def test_dangling_component_metadata_symlink_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            candidate = root / "share/info/broken/version.info"
+            candidate.parent.mkdir(parents=True)
+            candidate.symlink_to("missing-version.info")
+
+            completed, payload = self.run_inspector(root)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["components"], [])
+        unreadable_paths = {
+            item.get("path")
+            for item in payload["diagnostics"]
+            if item["code"] == "unreadable_path"
+        }
+        canonical_candidate = (
+            pathlib.Path(os.path.realpath(root)) / "share/info/broken/version.info"
+        )
+        self.assertIn(str(canonical_candidate), unreadable_paths)
 
     def test_inside_symlink_is_alias_and_outside_symlinks_are_not_read(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -338,6 +421,29 @@ class CannStateInspectorTest(unittest.TestCase):
         self.assertEqual(payload["npu_capture"]["status"], "unrecognized")
         self.assertIn(
             "capture_schema_unrecognized",
+            {item["code"] for item in payload["diagnostics"]},
+        )
+
+    def test_malformed_json_capture_is_not_reinterpreted_as_key_value_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            config = root / "platform_config/Ascend910B3.ini"
+            config.parent.mkdir(parents=True)
+            config.write_text("NpuArch=dav-c220\n", encoding="utf-8")
+            capture = pathlib.Path(temporary) / "capture.json"
+            capture.write_text('{"soc": "Ascend910B3"', encoding="utf-8")
+
+            completed, payload = self.run_inspector(
+                root, "--npu-capture", str(capture)
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["npu_capture"]["format"], "json")
+        self.assertEqual(payload["npu_capture"]["status"], "unrecognized")
+        self.assertEqual(payload["soc"]["runtime_status"], "unknown")
+        self.assertEqual(payload["npu_arch"]["state"], "unknown")
+        self.assertIn(
+            "capture_json_invalid",
             {item["code"] for item in payload["diagnostics"]},
         )
 
