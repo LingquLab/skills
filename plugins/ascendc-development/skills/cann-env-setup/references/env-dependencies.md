@@ -2,6 +2,15 @@
 
 Do not use one global dependency list for every CANN release. Build the plan from the official installation guide and release notes for the selected release, installation channel, host platform, and Ascend product.
 
+## Contents
+
+- [Host Inventory](#host-inventory)
+- [Version-Matched Official Evidence](#version-matched-official-evidence)
+- [Exact Package Plan](#exact-package-plan)
+- [Offline Artifact Inspection](#offline-artifact-inspection)
+- [Approval Packet](#approval-packet)
+- [Layered Verification](#layered-verification)
+
 ## Host Inventory
 
 Collect these facts without changing the host:
@@ -30,12 +39,12 @@ A failed optional inventory command is evidence to report, not a reason to guess
 Use the bundled official documentation client before constructing commands:
 
 ```bash
-python3 <skill-dir>/../ascendc-docs-search/scripts/search_ascend_docs.py \
-  'CANN installation package toolkit ops' --version <release> \
+python3 '<skill-dir>/../ascendc-docs-search/scripts/search_ascend_docs.py' \
+  'CANN installation package toolkit ops' --version '<release>' \
   --fetch --max-results 5
 
-python3 <skill-dir>/../ascendc-docs-search/scripts/search_ascend_docs.py \
-  'CANN release notes driver firmware compatibility' --version <release> \
+python3 '<skill-dir>/../ascendc-docs-search/scripts/search_ascend_docs.py' \
+  'CANN release notes driver firmware compatibility' --version '<release>' \
   --fetch --max-results 5
 ```
 
@@ -55,12 +64,12 @@ Do not use search summaries alone when the fetched page or direct official page 
 
 ## Exact Package Plan
 
-Use one row per selected component:
+Use one row per selected component. Keep the specific component ID separate from a broad planning role:
 
-| Role | Exact artifact/package | Release | Arch/SoC | Official source | Integrity evidence | Destination | Privilege | Rollback |
-|---|---|---|---|---|---|---|---|---|
-| toolkit | `<exact name>` | `<release>` | `<arch>` | `<official URL/repo>` | `<published checksum/signature>` | `<path>` | `<user/root>` | `<official method>` |
-| ops/kernel | `<exact name>` | `<release>` | `<SoC>` | `<official URL/repo>` | `<published checksum/signature>` | `<path>` | `<user/root>` | `<official method>` |
+| Component ID | Broad role | Exact artifact/package | Version text | Required constraint | Arch/SoC | Official source | Integrity evidence | Destination | Privilege | Rollback |
+|---|---|---|---|---|---|---|---|---|---|---|
+| toolkit | toolkit | `<exact name>` | `<metadata>` | `<release constraint>` | `<arch>` | `<official URL/repo>` | `<published checksum/signature>` | `<path>` | `<user/root>` | `<official method>` |
+| ops-nn | ops | `<exact name>` | `<metadata>` | `<release constraint>` | `<SoC>` | `<official URL/repo>` | `<published checksum/signature>` | `<path>` | `<user/root>` | `<official method>` |
 
 Add driver, firmware, runtime, compiler, NNAL, or framework packages only when the selected release documentation requires them. Do not assume that every release uses the same package split.
 
@@ -69,17 +78,17 @@ Add driver, firmware, runtime, compiler, NNAL, or framework packages only when t
 Enumerate candidate files without installing them:
 
 ```bash
-python3 <skill-dir>/scripts/inspect_packages.py --directory <download-directory> \
-  --require-role toolkit --require-role ops \
-  --expected-version <exact-release-token> --sha256
+python3 '<skill-dir>/scripts/inspect_packages.py' --directory '<download-directory>' \
+  --require-component toolkit --require-component ops-nn \
+  --expected-version '<exact-release-token>' --sha256
 ```
 
-The script rejects an empty set, a missing required role, multiple candidates for one recognized role, and filenames without an exact underscore-delimited release field matching the expected value. To resolve ambiguity, pass only the explicitly selected files:
+The script rejects an empty set, symlinks, non-regular files, artifacts over its 16 GiB hard limit, a missing explicitly required role/component, multiple candidates for an explicitly required role/component, and filenames without an exact underscore-delimited release field matching the expected value. Hashing is performed from one bounded file descriptor. Specific component hints take precedence over broad roles; combined and unfamiliar names stay `unknown`. To resolve ambiguity, pass only the explicitly selected files:
 
 ```bash
-python3 <skill-dir>/scripts/inspect_packages.py <exact-toolkit-file> <exact-ops-file> \
-  --require-role toolkit --require-role ops \
-  --expected-version <exact-release-token> --sha256
+python3 '<skill-dir>/scripts/inspect_packages.py' '<exact-toolkit-file>' '<exact-ops-nn-file>' \
+  --require-component toolkit --require-component ops-nn \
+  --expected-version '<exact-release-token>' --sha256
 ```
 
 The generated SHA-256 identifies the local bytes. Compare it with an official published checksum or validate the official signature; a locally computed hash alone does not establish authenticity or compatibility.
@@ -100,7 +109,7 @@ Obtain approval before downloads, repository/key changes, privileged commands, i
 ## Layered Verification
 
 1. Verify local artifact integrity or installed package-manager identity.
-2. Verify installed version metadata and cross-package release agreement.
+2. Verify installed component metadata and the selected release's official cross-component constraints. Preserve differences between component version text, toolkit runtime requirements, and driver versions as separate evidence.
 3. In a disposable shell, verify toolkit, compiler, runtime, and operator paths resolve.
 4. Run the read-only environment and NPU checks.
 5. Compile a minimal source with the intended compiler and headers.

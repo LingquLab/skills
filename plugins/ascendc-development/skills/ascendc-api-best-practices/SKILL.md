@@ -12,6 +12,7 @@ Use the bundled references as a reviewed snapshot of common patterns, not as a s
 1. Identify the target SoC, CANN version, and execution side: Host/Tiling or Kernel.
 2. If any of those are unknown and materially affect the answer, inspect the repository, build files, installed `version.info`, or ask for the missing fact.
 3. Read only the reference files relevant to the API or failure:
+   - Programming-model selection and mixed-model boundaries: `references/programming-models.md`
    - Arithmetic and broadcast: `references/api-arithmetic.md`
    - Reduction: `references/api-reduce.md` and, when using pattern overloads, `references/api-reduce-pattern.md`
    - Data movement and alignment: `references/api-datacopy.md`
@@ -41,6 +42,7 @@ hypothesis or search route, not a final compatibility conclusion.
 - For non-aligned tails, verify both the GM-to-UB and UB-to-GM directions. Their padding semantics can differ.
 - When recommending an in-place operation or buffer reuse, verify that the selected overload permits aliasing.
 - Prefer a compilable, version-matched example from the installed source tree over a generic snippet.
+- Identify the programming model before applying a rule. MemBase queues, Basic C++ Tensor allocation, RegBase register operations, SIMT threads, hybrid SIMD/SIMT regions, and Blaze/Tensor matmul APIs have different ownership, synchronization, and launch contracts.
 
 ## Output
 

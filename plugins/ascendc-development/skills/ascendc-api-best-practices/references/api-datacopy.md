@@ -5,6 +5,17 @@ types, units, padding behavior, supported directions, types, and products vary
 by CANN release, SoC, and overload. Record the exact declaration before writing
 Tiling or Kernel code.
 
+## Contents
+
+- [Select the Exact Declaration](#select-the-exact-declaration)
+- [CANN 9.1 Header Calibration](#cann-91-header-calibration)
+- [Schematic Direction Patterns](#schematic-direction-patterns)
+- [Layout and Bounds](#layout-and-bounds)
+- [Synchronization and Lifetime](#synchronization-and-lifetime)
+- [Diagnose a Suspected Tail Defect](#diagnose-a-suspected-tail-defect)
+- [Performance](#performance)
+- [Evidence](#evidence)
+
 ## Select the Exact Declaration
 
 1. Identify source and destination memory positions and the execution pipeline.
