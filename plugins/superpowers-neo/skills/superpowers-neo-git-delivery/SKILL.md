@@ -1,30 +1,27 @@
 ---
 name: superpowers-neo-git-delivery
-description: Use after completing feature or bug-fix work in a Git repository; when the user requests a commit, push, pull request, merge, history rewrite, or cleanup; when the user asks to deliver or ship changes; or when manually invoked to authorize current-task branch selection, a scoped commit when needed, normal push, and pull request creation
+description: Use after completing feature or bug-fix work in a Git repository; for explicit or general Git delivery requests; or when manually invoked to authorize current-task branch selection, a scoped commit when needed, normal push, and pull request creation
 ---
 
 # Git Delivery
 
 ## Authority
 
-Enter automatically after completed feature or bug-fix work in a Git repository and on explicit delivery requests. Ask when the task category is unclear. Respect any opt-out or narrower instruction; for non-Git work, provide only a result summary.
+Enter automatically after completed feature or bug-fix work in a Git repository and on delivery requests. Clarify requests whose intended actions are unclear. Respect any opt-out or narrower instruction; for non-Git work, provide only a result summary.
 
 - **Automatic entry:** Commit task-owned uncommitted changes after checks. Push only an established, task-owned non-default branch. Do not infer branch-choice or PR authority.
 - **Named request:** Perform exactly the requested Git actions without redundant confirmation. A first normal push includes setting upstream. Infer no unnamed action.
-- **Generic delivery request:** If the user says `deliver` or `ship` without naming actions or invoking the skill, clarify the intended branch, commit, push, and PR actions before changing Git state. Do not fall back to automatic defaults while the request is unresolved.
 - **Manual invocation:** `$superpowers-neo-git-delivery` or an equivalent explicit attachment authorizes selecting or creating and switching to a task branch, a scoped commit when needed, normal push, and PR creation. A quoted name, discussion, or automatic trigger is not manual invocation.
 
 Automatic entry and the manual bundle do not authorize merge, history rewrite, force push, hook bypass, cleanup, discarding changes, or bypassing repository protections. Apply the separate boundaries below even when a protected action is named.
 
 ## Deliver
 
-1. Read repository guidance. Inspect the current and default branches, history and tracking, PR template, status, staged and unstaged diffs, untracked files, generated artifacts, and sensitive content.
-2. Select the branch according to the authority source. Establish task ownership from repository guidance, tracking, workspace scope, and a task-only intended-base-to-head commit range, not the branch name alone. Under automatic entry, ask for a branch decision before creating, switching, or committing on the default branch; uncertain ownership of the current non-default branch limits automatic push, not the scoped commit. Under a named request, create or switch only when requested. Under manual invocation, prefer a suitable task branch or create one from its clean intended base without another prompt, following repository conventions or otherwise using `codex/<topic>`. For already-committed work, first require a task-owned range not yet in the intended base; if none exists, report that it is integrated and skip branch, push, and PR creation. Never inherit unrelated commits or move, stash, overwrite, or discard unrelated work to switch branches; stop and ask when safe isolation is impossible.
-3. Define the exact task-owned scope. Include relevant code, tests, documentation, approved specs, and durable plans; exclude unrelated changes, accidental generated files, and temporary plans. Stop and ask when task and user changes in one file cannot be separated.
-4. Verify the exact content being delivered after the final edit. Fix task-caused failures only when a commit is authorized; otherwise preserve the workspace and stop if the failure blocks the requested action. Report unavailable checks, unrelated failures, and residual risk; stop and ask when they block delivery.
-5. When a commit is authorized and task-owned uncommitted changes exist, stage exact paths and recheck the cached diff, status, scope, generated files, and sensitive content before committing. When no commit is authorized or needed, do not alter the index or create an empty commit; continue only with authorized actions from the existing head. Follow repository commit style, add no generated authorship, and do not bypass hooks. After a successful implementation commit, delete only its uncommitted temporary plan; retain the plan if the commit fails.
-6. Push only the selected branch. Automatic push requires an established, task-owned non-default branch. A named push applies to the exact requested branch after identity and scope checks. Manual invocation applies to the selected task branch. Set upstream on first push; stop if a force push would be required.
-7. Before creating a PR, query open PRs in the intended repository for the exact head and base. Reuse only an exact match; never retarget an existing PR implicitly. If the same head targets another base, create the requested PR when unambiguous and supported, otherwise clarify the conflict. Automatic entry requires explicit PR authority; a named PR request authorizes only PR creation; manual invocation includes it. Follow the PR template and report actual verification, gaps, and risks. Readiness evidence must apply to the selected remote head SHA, not uncommitted content or a newer unpushed local head; verify that SHA directly or stop and disclose the divergence, using a qualified draft only when appropriate. Create a ready PR only when complete and verified.
+1. Read repository guidance and inspect the branches, history, tracking, status, diffs, untracked files, generated artifacts, sensitive content, and intended PR target.
+2. Choose a branch and scope that contain only the current task. Under automatic entry, ask before creating, switching, or committing on the default branch. Under a named request, change branches only when requested. Under manual invocation, choose or create a suitable task branch without another prompt, following repository conventions or otherwise using `codex/<topic>`. Preserve unrelated changes and history; stop and ask when safe isolation is unclear. If nothing remains to deliver, report that instead of creating empty Git artifacts.
+3. Verify the actual content that will be delivered. Fix task-caused failures only when a commit is authorized; otherwise preserve the workspace. Report unavailable checks, unrelated failures, and residual risk, and stop when they block safe delivery.
+4. When a commit is authorized and task-owned changes exist, stage exact paths, inspect the cached diff, and commit using repository style. Otherwise leave the index unchanged and create no empty commit. Never bypass hooks by default. Delete only the implementation's temporary plan after a successful commit.
+5. Push only the selected branch under the applicable authority, setting upstream on first push. Before a PR, identify the intended remote target and reuse only a matching existing PR without implicitly retargeting another. Base readiness on the content actually published for that PR, follow the template, and report verification gaps and risks. Create a ready PR only when complete and verified; otherwise stop or use a clearly qualified draft.
 
 ## Protected Actions
 

@@ -36,7 +36,7 @@ Superpowers Neo will be a separate personal skill series. It keeps the useful pl
 4. Persistent implementation changes require the appropriate design approval when a design gate has triggered.
 5. Claims of completion must be supported by current evidence.
 6. Pre-existing user changes are preserved. Neo must not stash, move, overwrite, or discard them without explicit authorization, and a default commit may include only changes whose ownership as current task scope is established.
-7. Automatic delivery authorizes scoped task commits when task-owned uncommitted changes exist and normal pushes only from an established, task-owned non-default branch. A direct request authorizes only its named Git actions. A generic request such as `deliver` or `ship` requires clarifying the intended actions before mutation. Explicit manual invocation of Git delivery bundles authorization for current-task branch creation, a scoped commit when needed, normal push, and PR creation. Merge, history rewrite, force push, hook bypass, and cleanup retain explicit protection boundaries unless separately and specifically requested.
+7. Automatic delivery authorizes scoped task commits when needed and normal pushes only from an established task branch. A direct request authorizes only its named Git actions; ambiguous requests are clarified before mutation. Explicit manual invocation bundles task-branch selection, a scoped commit when needed, normal push, and PR creation. Higher-risk actions retain separate protection.
 8. Skills cross-reference only other `superpowers-neo-*` skills, never the original `superpowers:*` names.
 
 ## 5. Skill Inventory
@@ -257,7 +257,7 @@ Before claiming work is complete, fixed, or passing:
 
 Enter the delivery flow automatically when feature or bug-fix work completes in a Git repository. Do not enter when the user explicitly opts out. Ask when the task category is unclear. Non-Git work only receives a result summary.
 
-Keep four authority sources distinct. Automatic entry uses the conservative defaults below. A direct request for one or more Git actions authorizes exactly those named actions without a redundant prompt, overrides automatic defaults for unnamed actions, and does not imply the full bundle. A generic delivery request that names no actions and does not invoke the skill requires clarifying its branch, commit, push, and PR scope before changing Git state; do not apply automatic defaults while it remains unresolved. When the user manually invokes `$superpowers-neo-git-delivery` or uses an equivalent explicit skill attachment, treat that invocation as bundled authorization to select or create and switch to a current-task branch, create a scoped commit when task-owned uncommitted changes exist, push that branch normally, and create a PR. Do not infer manual invocation from an automatic trigger, quoted text, or discussion of the skill. A narrower instruction overrides the bundle. Manual invocation does not authorize merge or destructive/high-risk Git actions.
+Keep three authority sources distinct: conservative automatic defaults, exact named actions, and the explicit `$superpowers-neo-git-delivery` bundle. Clarify ambiguous delivery requests rather than guessing their scope. A narrower instruction overrides any default or bundle. Manual invocation does not authorize merge or destructive/high-risk Git actions.
 
 #### Commit boundary
 
@@ -274,8 +274,7 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 
 - Under automatic entry, ask before creating or switching branches when the current branch is the default branch.
 - Under a direct named branch request, create or switch only as requested without asking again.
-- Under manual invocation, select an appropriate task branch or create and switch to one from its clean intended base without another prompt. Verify that the intended-base-to-head range contains only current-task commits; never inherit unrelated commits.
-- For already-committed work, create a task branch only when a task-owned commit range remains outside the intended base. If none exists, report that the work is integrated and skip branch, push, and PR creation.
+- Under manual invocation, select or create an appropriate task branch without another prompt. Use repository context and history to keep its proposed delivery range limited to the current task.
 - Use an existing development branch when appropriate.
 - For a new branch, follow user and repository conventions first; otherwise use `codex/<topic>` with lowercase hyphenated words.
 - Stop and ask if switching safely would require stashing, moving, overwriting, or discarding user-owned changes.
@@ -299,11 +298,8 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 - Allow only explicit, risk-confirmed `--force-with-lease`; never use bare `--force`.
 - Under automatic entry, PR creation requires explicit user instruction or explicit approval of that named action in a plan. Default push authority never implies PR authority.
 - A direct named PR request authorizes PR creation after readiness checks but does not authorize branch creation, commit, or merge.
-- Before creating a PR, query open PRs in the intended repository for the exact selected head and base. Reuse only an exact match and never retarget another PR implicitly.
-- If the same head already targets a different base, create the requested PR when unambiguous and supported; otherwise clarify the conflict while preserving the existing PR.
-- Under manual invocation, reuse the exact repository/head/base match or create the requested PR after pushing without another authorization prompt.
-- PR readiness evidence must apply to the exact committed head. Do not rely on checks run against uncommitted working-tree changes; use clean-head evidence or stop and disclose the verification gap.
-- The verified commit must match the selected remote PR head SHA. If a PR-only request leaves a newer local head unpushed, verify the actual remote head or disclose the divergence and stop; create only an appropriately qualified draft when useful.
+- Identify the intended remote PR target and reuse only a matching existing PR; never retarget unrelated work implicitly.
+- PR readiness evidence must apply to the content actually published for that PR, not uncommitted or unpushed local state.
 - Follow the repository PR template.
 - Without a template, include summary, verification, known risks, and the relevant spec.
 - Create a ready PR when implementation and verification are complete.
@@ -354,17 +350,12 @@ Keep four authority sources distinct. Automatic entry uses the conservative defa
 9. Completion claims distinguish confirmed checks, unavailable checks, and unrelated baseline failures.
 10. Automatically completed feature or fix work with task-owned uncommitted changes receives a scoped commit by default unless the user opts out, while a default-branch location still requires an explicit branch decision.
 11. An established task-owned non-default branch receives a normal push by default; automatic entry does not authorize a PR.
-12. A direct request for a Git action authorizes that exact action without expanding to other delivery actions.
-13. A generic delivery request names no actions and therefore requires clarification before any Git mutation.
-14. Manual invocation of Git delivery authorizes current-task branch creation, a scoped commit when needed, normal push, and PR creation without redundant prompts.
-15. Delivery reuses an open PR only when repository, head, and intended base all match.
-16. A ready PR is supported by verification of its exact committed head, not uncommitted working-tree content.
-17. When the task is already committed, delivery creates no empty commit and continues with the remaining authorized actions from the existing committed head.
-18. A selected or newly created task branch contains only current-task commits after its intended base; delivery stops when unrelated history cannot be isolated safely.
-19. PR readiness evidence applies to the selected remote head SHA, never only to a newer unpushed local commit.
-20. Already-integrated work creates no empty task branch, push, or PR.
-21. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
-22. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
+12. Named actions remain narrow, and ambiguous delivery requests are clarified before mutation.
+13. Manual invocation authorizes task-branch selection, a scoped commit when needed, normal push, and PR creation without redundant prompts.
+14. Delivery contains only current-task work and creates no empty artifacts when nothing remains to deliver.
+15. PR operations target the intended remote work, and readiness evidence applies to the content actually published there.
+16. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
+17. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
 
 ## 11. Validation Strategy
 
@@ -379,6 +370,6 @@ Implementation validation will include:
 - Bug-fix scenarios with both automated regression and justified alternative validation.
 - Review scenarios with valid, ambiguous, incorrect, and scope-expanding feedback.
 - Completion scenarios with passing tests, unavailable hardware, and unrelated baseline failures.
-- Delivery scenarios covering automatic defaults, exact named-action authorization, generic-delivery clarification, manual end-to-end authorization, already-committed clean branches, already-integrated work, task-only commit ranges, preservation of uncommitted changes, local/remote exact-head PR verification, repository/head/base PR reuse, task-branch creation and pushes, merges, hooks, and cleanup boundaries.
+- Delivery scenarios sample authority, task isolation, verification, and protected-action boundaries; they are representative, not an exhaustive state machine.
 
 The original Superpowers plugin remains installed during Neo development and validation. Cutover occurs only after the user reviews the implemented skills and explicitly authorizes removal of the original plugin.
