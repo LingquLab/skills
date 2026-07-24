@@ -403,7 +403,7 @@ def scan_release_claims(
     claims: list[dict[str, Any]] = []
     for relative_path, allow_plain_text in RELEASE_CANDIDATES:
         candidate = root / relative_path
-        if not candidate.exists():
+        if not candidate.exists() and not candidate.is_symlink():
             continue
         resolved = resolve_contained(root, candidate, diagnostics)
         if resolved is None:
@@ -563,11 +563,13 @@ def scan_platform_configs(
                 seen_identifiers.add(normalized)
 
         arch_fields = field_claims(fields, NPU_ARCH_FIELD_NAMES)
-        arch_values = sorted({value for _, value, _ in arch_fields}, key=str.casefold)
+        arch_claims_by_value: dict[str, tuple[str, str, int]] = {}
+        for field, value, line in arch_fields:
+            arch_claims_by_value.setdefault(value.casefold(), (field, value, line))
+        arch_values = sorted(arch_claims_by_value.values(), key=lambda item: item[1].casefold())
         arch_evidence = None
         if len(arch_values) == 1:
-            field, _, line = arch_fields[0]
-            value = arch_values[0]
+            field, value, line = arch_values[0]
             arch_evidence = {
                 "value": value,
                 "provenance": {
@@ -602,7 +604,7 @@ def capture_claim(
     locator: str,
     claim_kind: str,
 ) -> dict[str, Any] | None:
-    if not isinstance(value, (str, int, float)):
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
         return None
     rendered = str(value).strip()
     if not rendered:
@@ -619,23 +621,29 @@ def capture_claim(
 
 def parse_json_capture(
     payload: Any, path: pathlib.Path
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
     soc_claims: list[dict[str, Any]] = []
     driver_claims: list[dict[str, Any]] = []
+    has_invalid_identity_field = False
     if not isinstance(payload, dict):
-        return soc_claims, driver_claims
+        return soc_claims, driver_claims, has_invalid_identity_field
+
+    def append_claim(
+        value: Any, locator: str, target: list[dict[str, Any]]
+    ) -> None:
+        nonlocal has_invalid_identity_field
+        if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+            has_invalid_identity_field = True
+            return
+        claim = capture_claim(value, path, locator, "npu_capture_json")
+        if claim is not None:
+            target.append(claim)
 
     for key in ("soc", "soc_name", "soc_version"):
         if key in payload:
-            claim = capture_claim(payload[key], path, f"$.{key}", "npu_capture_json")
-            if claim is not None:
-                soc_claims.append(claim)
+            append_claim(payload[key], f"$.{key}", soc_claims)
     if "driver_version" in payload:
-        claim = capture_claim(
-            payload["driver_version"], path, "$.driver_version", "npu_capture_json"
-        )
-        if claim is not None:
-            driver_claims.append(claim)
+        append_claim(payload["driver_version"], "$.driver_version", driver_claims)
 
     devices = payload.get("devices", [])
     if isinstance(devices, list):
@@ -644,24 +652,14 @@ def parse_json_capture(
                 continue
             for key in ("soc", "soc_name", "soc_version"):
                 if key in device:
-                    claim = capture_claim(
-                        device[key],
-                        path,
-                        f"$.devices[{index}].{key}",
-                        "npu_capture_json",
-                    )
-                    if claim is not None:
-                        soc_claims.append(claim)
+                    append_claim(device[key], f"$.devices[{index}].{key}", soc_claims)
             if "driver_version" in device:
-                claim = capture_claim(
+                append_claim(
                     device["driver_version"],
-                    path,
                     f"$.devices[{index}].driver_version",
-                    "npu_capture_json",
+                    driver_claims,
                 )
-                if claim is not None:
-                    driver_claims.append(claim)
-    return soc_claims, driver_claims
+    return soc_claims, driver_claims, has_invalid_identity_field
 
 
 def parse_npu_capture(
@@ -696,8 +694,22 @@ def parse_npu_capture(
     if json_parsed:
         capture_format = "json"
         if isinstance(payload, dict):
-            soc_claims, driver_claims = parse_json_capture(payload, capture_path)
-            capture_status = "recognized" if soc_claims or driver_claims else "recognized_no_claims"
+            soc_claims, driver_claims, has_invalid_identity_field = parse_json_capture(
+                payload, capture_path
+            )
+            if has_invalid_identity_field:
+                soc_claims = []
+                driver_claims = []
+                capture_status = "unrecognized"
+                diagnostic(
+                    diagnostics,
+                    "capture_schema_unrecognized",
+                    "JSON NPU capture has an invalid named SoC or driver field; "
+                    "no hardware claim was inferred",
+                    path=capture_path,
+                )
+            else:
+                capture_status = "recognized" if soc_claims or driver_claims else "recognized_no_claims"
         else:
             capture_status = "unrecognized"
             diagnostic(

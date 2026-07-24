@@ -215,6 +215,27 @@ class CannStateInspectorTest(unittest.TestCase):
         )
         self.assertIn(str(canonical_candidate), unreadable_paths)
 
+    def test_dangling_release_metadata_symlink_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            candidate = root / "compiler/version.info"
+            candidate.parent.mkdir(parents=True)
+            candidate.symlink_to("missing-version.info")
+
+            completed, payload = self.run_inspector(root)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["toolkit"]["release_status"], "unknown")
+        canonical_candidate = pathlib.Path(os.path.realpath(root)) / "compiler/version.info"
+        self.assertIn(
+            str(canonical_candidate),
+            {
+                item.get("path")
+                for item in payload["diagnostics"]
+                if item["code"] == "unreadable_path"
+            },
+        )
+
     def test_inside_symlink_is_alias_and_outside_symlinks_are_not_read(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = pathlib.Path(temporary)
@@ -444,6 +465,45 @@ class CannStateInspectorTest(unittest.TestCase):
         self.assertEqual(payload["npu_arch"]["state"], "unknown")
         self.assertIn(
             "capture_json_invalid",
+            {item["code"] for item in payload["diagnostics"]},
+        )
+
+    def test_boolean_json_identity_claims_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            root.mkdir()
+            capture = pathlib.Path(temporary) / "capture.json"
+            capture.write_text(
+                json.dumps({"soc": True, "driver_version": False}), encoding="utf-8"
+            )
+
+            completed, payload = self.run_inspector(root, "--npu-capture", str(capture))
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["npu_capture"]["status"], "unrecognized")
+        self.assertEqual(payload["soc"]["runtime_status"], "unknown")
+        self.assertEqual(payload["driver"]["status"], "unknown")
+        self.assertIn(
+            "capture_schema_unrecognized",
+            {item["code"] for item in payload["diagnostics"]},
+        )
+
+    def test_casefold_equivalent_npu_arch_claims_are_not_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            config = root / "platform_config/Ascend910B3.ini"
+            config.parent.mkdir(parents=True)
+            config.write_text(
+                "NpuArch=DAV-C220\nNpuArch=dav-c220\n", encoding="utf-8"
+            )
+
+            completed, payload = self.run_inspector(root, "--soc", "Ascend910B3")
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["npu_arch"]["value"], "DAV-C220")
+        self.assertEqual(payload["npu_arch"]["match_status"], "exact")
+        self.assertNotIn(
+            "platform_npu_arch_conflict",
             {item["code"] for item in payload["diagnostics"]},
         )
 

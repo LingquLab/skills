@@ -164,6 +164,7 @@ fi
 version=''
 runtime_requirement=''
 version_source=''
+state_release_status=''
 if [[ -n "$toolkit_root" ]]; then
     version_candidates=(
         "$toolkit_root/compiler/version.info"
@@ -182,17 +183,6 @@ if [[ -n "$toolkit_root" ]]; then
     done
 fi
 
-if [[ -n "$version" ]]; then
-    ok "CANN version=$version (source: $version_source)"
-    if [[ -n "$runtime_requirement" ]]; then
-        printf '      required runtime=%s\n' "$runtime_requirement"
-    fi
-elif [[ -n "$toolkit_root" ]]; then
-    warn "CANN version metadata was not found below the selected toolkit root: $toolkit_root"
-else
-    info 'CANN version check is unavailable without a discovered toolkit root'
-fi
-
 if [[ -n "$toolkit_root" ]]; then
     state_inspector="$script_dir/inspect_cann_state.py"
     if [[ -f "$state_inspector" ]] && command -v python3 >/dev/null 2>&1; then
@@ -200,6 +190,7 @@ if [[ -n "$toolkit_root" ]]; then
         state_output=''
         if state_output=$(python3 "$state_inspector" --toolkit-root "$toolkit_root" 2>&1); then
             printf '%s\n' "$state_output"
+            state_release_status=$(printf '%s\n' "$state_output" | awk '/^toolkit release:/ { sub(/^.*\(/, ""); sub(/\).*$/, ""); print; exit }')
             state_warning_count=$(printf '%s\n' "$state_output" | awk '/^\[warn\]/ { count++ } END { print count + 0 }')
             warnings=$((warnings + state_warning_count))
         else
@@ -211,6 +202,21 @@ if [[ -n "$toolkit_root" ]]; then
     else
         warn 'python3 is unavailable; component metadata inventory was skipped'
     fi
+fi
+
+if [[ "$state_release_status" == 'conflict' ]]; then
+    warn "CANN version metadata conflicts below the selected toolkit root: $toolkit_root"
+    version=''
+    runtime_requirement=''
+elif [[ -n "$version" ]]; then
+    ok "CANN version=$version (source: $version_source)"
+    if [[ -n "$runtime_requirement" ]]; then
+        printf '      required runtime=%s\n' "$runtime_requirement"
+    fi
+elif [[ -n "$toolkit_root" ]]; then
+    warn "CANN version metadata was not found below the selected toolkit root: $toolkit_root"
+else
+    info 'CANN version check is unavailable without a discovered toolkit root'
 fi
 
 opp_path=${ASCEND_OPP_PATH:-}

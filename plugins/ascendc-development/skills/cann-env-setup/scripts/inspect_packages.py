@@ -116,7 +116,7 @@ def release_fields(filename: str) -> tuple[str, ...]:
 
 
 def inspect_package_file(path: pathlib.Path, *, hash_file: bool) -> tuple[int, str | None]:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     if path.is_symlink():
         raise ValueError("symbolic links are not accepted")
     descriptor = os.open(path, flags)

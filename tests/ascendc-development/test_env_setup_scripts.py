@@ -138,6 +138,31 @@ class EnvironmentScriptsTest(unittest.TestCase):
         self.assertIn(f"warnings={warning_count}", summary)
         self.assertIn("component_version_missing", completed.stdout)
 
+    def test_check_env_does_not_report_a_resolved_version_when_metadata_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            toolkit = pathlib.Path(temporary) / "toolkit"
+            (toolkit / "compiler").mkdir(parents=True)
+            (toolkit / "runtime").mkdir()
+            (toolkit / "opp").mkdir()
+            (toolkit / "compiler/version.info").write_text("Version=9.1.0\n", encoding="utf-8")
+            (toolkit / "version.info").write_text("Version=8.0.RC3\n", encoding="utf-8")
+            env = clean_env()
+            env["ASCEND_ENV_CHECK_ROOTS"] = str(toolkit)
+            env["HOME"] = temporary
+
+            completed = subprocess.run(
+                ["bash", str(ENV_SKILL / "scripts/check_env.sh")],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("toolkit release: <unknown> (conflict)", completed.stdout)
+        self.assertNotIn("[ok] CANN version=9.1.0", completed.stdout)
+        self.assertIn("CANN version metadata conflicts", completed.stdout)
+
     def test_npu_info_preserves_bounded_raw_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             bindir = pathlib.Path(temporary)
@@ -228,12 +253,15 @@ class EnvironmentScriptsTest(unittest.TestCase):
 
 
 class PackageInspectorTest(unittest.TestCase):
-    def run_inspector(self, *args: str) -> subprocess.CompletedProcess[str]:
+    def run_inspector(
+        self, *args: str, timeout: float | None = None
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["python3", str(SETUP_SKILL / "scripts/inspect_packages.py"), *args],
             text=True,
             capture_output=True,
             check=False,
+            timeout=timeout,
         )
 
     def test_rejects_ambiguous_same_role_candidates(self) -> None:
@@ -373,6 +401,20 @@ class PackageInspectorTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertEqual(payload["packages"], [])
         self.assertTrue(any("symbolic links" in error for error in payload["errors"]))
+
+    def test_rejects_fifo_package_candidate_without_blocking(self) -> None:
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("mkfifo is unavailable on this platform")
+        with tempfile.TemporaryDirectory() as temporary:
+            fifo = pathlib.Path(temporary) / "Ascend-cann-toolkit_9.1.0_linux-aarch64.run"
+            os.mkfifo(fifo)
+
+            completed = self.run_inspector(str(fifo), timeout=2)
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["packages"], [])
+        self.assertTrue(any("not a regular file" in error for error in payload["errors"]))
 
     def test_rejects_version_substring_collision(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
