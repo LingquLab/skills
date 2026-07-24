@@ -26,7 +26,7 @@ def write_version(path: pathlib.Path, version: str, extra: str = "") -> None:
 
 class CannStateInspectorTest(unittest.TestCase):
     def run_inspector(
-        self, toolkit_root: pathlib.Path, *arguments: str
+        self, toolkit_root: pathlib.Path, *arguments: str, timeout: float | None = None
     ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
         completed = subprocess.run(
             [
@@ -40,6 +40,7 @@ class CannStateInspectorTest(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            timeout=timeout,
         )
         payload = json.loads(completed.stdout)
         return completed, payload
@@ -487,6 +488,64 @@ class CannStateInspectorTest(unittest.TestCase):
             "capture_schema_unrecognized",
             {item["code"] for item in payload["diagnostics"]},
         )
+
+    def test_fifo_capture_is_rejected_without_blocking(self) -> None:
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("mkfifo is unavailable on this platform")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            root.mkdir()
+            capture = pathlib.Path(temporary) / "capture.json"
+            os.mkfifo(capture)
+
+            completed, payload = self.run_inspector(
+                root, "--npu-capture", str(capture), timeout=2
+            )
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["error"]["code"], "invalid_npu_capture")
+
+    def test_deeply_nested_json_capture_returns_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            root.mkdir()
+            capture = pathlib.Path(temporary) / "capture.json"
+            capture.write_text("[" * 2000 + "]" * 2000, encoding="utf-8")
+
+            completed, payload = self.run_inspector(root, "--npu-capture", str(capture))
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["error"]["code"], "invalid_npu_capture")
+
+    def test_text_output_escapes_control_characters_from_capture_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / "cann"
+            root.mkdir()
+            capture = pathlib.Path(temporary) / "capture.json"
+            capture.write_text(
+                json.dumps({"soc": "Ascend910B3\n[ok] forged diagnostic\x1b[31m"}),
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    "python3",
+                    str(SCRIPT),
+                    "--toolkit-root",
+                    str(root),
+                    "--npu-capture",
+                    str(capture),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn(
+            r"SoC: Ascend910B3\n[ok] forged diagnostic\x1b[31m;",
+            completed.stdout,
+        )
+        self.assertNotIn("\n[ok] forged diagnostic", completed.stdout)
 
     def test_casefold_equivalent_npu_arch_claims_are_not_conflicts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

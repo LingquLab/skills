@@ -161,7 +161,33 @@ class EnvironmentScriptsTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("toolkit release: <unknown> (conflict)", completed.stdout)
         self.assertNotIn("[ok] CANN version=9.1.0", completed.stdout)
-        self.assertIn("CANN version metadata conflicts", completed.stdout)
+        self.assertIn("CANN version metadata is not resolved", completed.stdout)
+
+    def test_check_env_does_not_report_invalid_plain_version_cfg_as_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            toolkit = pathlib.Path(temporary) / "toolkit"
+            (toolkit / "compiler").mkdir(parents=True)
+            (toolkit / "runtime").mkdir()
+            (toolkit / "opp").mkdir()
+            (toolkit / "version.cfg").write_text(
+                "[package]\nInstall_Path=/opt/cann\n", encoding="utf-8"
+            )
+            env = clean_env()
+            env["ASCEND_ENV_CHECK_ROOTS"] = str(toolkit)
+            env["HOME"] = temporary
+
+            completed = subprocess.run(
+                ["bash", str(ENV_SKILL / "scripts/check_env.sh")],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("toolkit release: <unknown> (unknown)", completed.stdout)
+        self.assertNotIn("[ok] CANN version=[package]", completed.stdout)
+        self.assertIn("CANN version metadata is not resolved", completed.stdout)
 
     def test_npu_info_preserves_bounded_raw_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
