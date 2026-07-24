@@ -261,7 +261,7 @@ Keep three authority sources distinct. Automatic entry uses the conservative def
 
 #### Commit boundary
 
-- Entering the flow authorizes a scoped commit needed to deliver the completed task unless the user opts out.
+- Automatic entry and manual invocation authorize a scoped commit needed to deliver the completed task unless the user opts out. A direct named request authorizes a commit only when commit was one of the named actions; otherwise preserve all uncommitted changes.
 - Inspect status, diff, verification, and unrelated changes before committing. Determine and report the intended commit scope without asking for redundant commit confirmation.
 - Stage only task code, tests, documentation, the approved spec, and durable plans.
 - Exclude unrelated changes and temporary plans.
@@ -282,7 +282,7 @@ Keep three authority sources distinct. Automatic entry uses the conservative def
 #### Pre-commit checks
 
 - Confirm relevant verification is current after the final edit.
-- Inspect the staged diff, file scope, accidental generated files, and sensitive information.
+- When a commit is authorized, inspect the staged diff, file scope, accidental generated files, and sensitive information. Otherwise do not alter the index.
 - Fix task-caused failures. If verification cannot be completed or an unrelated failure remains, disclose the gap and risk before committing or pushing.
 - Do not bypass commit or push hooks with `--no-verify` by default.
 
@@ -297,7 +297,8 @@ Keep three authority sources distinct. Automatic entry uses the conservative def
 - Allow only explicit, risk-confirmed `--force-with-lease`; never use bare `--force`.
 - Under automatic entry, PR creation requires explicit user instruction or explicit approval of that named action in a plan. Default push authority never implies PR authority.
 - A direct named PR request authorizes PR creation after readiness checks but does not authorize branch creation, commit, or merge.
-- Under manual invocation, create the PR after pushing without another authorization prompt.
+- Before creating a PR, query open PRs for the exact selected head branch. Reuse and update an existing PR instead of attempting a duplicate.
+- Under manual invocation, reuse the selected branch's open PR or create one after pushing without another authorization prompt.
 - Follow the repository PR template.
 - Without a template, include summary, verification, known risks, and the relevant spec.
 - Create a ready PR when implementation and verification are complete.
@@ -350,8 +351,9 @@ Keep three authority sources distinct. Automatic entry uses the conservative def
 11. An established task-owned non-default branch receives a normal push by default; automatic entry does not authorize a PR.
 12. A direct request for a Git action authorizes that exact action without expanding to other delivery actions.
 13. Manual invocation of Git delivery authorizes current-task branch creation, scoped commit, normal push, and PR creation without redundant prompts.
-14. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
-15. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
+14. Delivery reuses an open PR for the selected head branch instead of attempting a duplicate.
+15. Merge, history rewrite, force-with-lease, hook bypass, and cleanup remain separately protected unless specifically requested under their documented checks.
+16. No Neo skill requires `using-superpowers`, `writing-skills`, or absolute TDD behavior.
 
 ## 11. Validation Strategy
 
@@ -366,6 +368,6 @@ Implementation validation will include:
 - Bug-fix scenarios with both automated regression and justified alternative validation.
 - Review scenarios with valid, ambiguous, incorrect, and scope-expanding feedback.
 - Completion scenarios with passing tests, unavailable hardware, and unrelated baseline failures.
-- Delivery scenarios covering automatic defaults, exact named-action authorization, manual end-to-end authorization, task-branch creation and pushes, PRs, merges, hooks, and cleanup boundaries.
+- Delivery scenarios covering automatic defaults, exact named-action authorization, manual end-to-end authorization, preservation of uncommitted changes, existing-PR reuse, task-branch creation and pushes, merges, hooks, and cleanup boundaries.
 
 The original Superpowers plugin remains installed during Neo development and validation. Cutover occurs only after the user reviews the implemented skills and explicitly authorizes removal of the original plugin.
