@@ -71,7 +71,7 @@ Neo has no global entry skill. Each skill is independently discoverable and load
 - Worktrees and subagents are selected by isolation and coordination value.
 - Validation is risk-driven; test-first development is useful but not universal.
 - Independent review is selected by risk rather than required after every task.
-- Scoped task commits are authorized by default, as are normal pushes from established task-owned non-default branches; default-branch choices, PRs, merges, history rewrites, hook bypasses, and cleanup remain protected.
+- Automatic delivery authorizes scoped task commits and normal pushes from established task-owned non-default branches. Manually invoking `superpowers-neo-git-delivery` additionally authorizes task-branch creation, normal push, and PR creation; merge, history rewrite, force push, hook bypass, and cleanup remain separately protected.
 - Skill-authoring methodology is not part of the shipped series.
 
 See the [Superpowers Neo design](docs/specs/2026-07-22-superpowers-neo-design.md) for its behavior contract and the [marketplace design](docs/specs/2026-07-23-codex-marketplace-design.md) for packaging and extension decisions.
