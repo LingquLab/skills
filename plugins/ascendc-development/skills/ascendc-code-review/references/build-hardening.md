@@ -14,9 +14,9 @@ Apply these checks to Host and Tiling binaries where the target toolchain suppor
 Example ELF inspection commands:
 
 ```bash
-readelf -W -l <binary>
-readelf -W -d <binary>
-readelf -W -s <binary>
+readelf -W -l '<binary>'
+readelf -W -d '<binary>'
+readelf -W -s '<binary>'
 ```
 
 Use the target platform's approved build policy when it specifies stricter or different flags.

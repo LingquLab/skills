@@ -27,6 +27,11 @@ Apply only the sections relevant to the changed code. Project policy and version
 ## Operator Integration
 
 - Trace attributes from framework context through Tiling data to Kernel use.
+- Compare every `OpDef` input, output, attribute, optional/dynamic marker, data-type set, and format with the public API and registration entry.
+- Verify `InferShape` and `InferDataType` handle the same ranks, empty/scalar tensors, dynamic dimensions, broadcast rules, and supported types declared by `OpDef`; check their unit tests use the registered schemas rather than a parallel test-only contract.
+- Treat `TilingData` as a serialized ABI: compare field order, width, signedness, alignment, initialization, capacity checks, serialization length, Kernel declaration, and every read site.
+- Trace TilingKey end to end: declared key/template set, Host assignment, build-generated variants, Kernel dispatch, fallback behavior, and tests. A Host key with no compiled Kernel branch is a runtime failure; a dispatch branch with no reachable Host key is dead coverage.
+- Verify `blockDim`, per-core partitioning, workspace sizes, and any atomic-clear requirement are set by Host code and consumed with the same units and layout by the actual launch path.
 - Check descriptor and attribute access against the target framework lifecycle and IR schema: validate nullable or fallible results when the selected API permits failure, and require the retrieved type to match the registered attribute type. Do not reject `GetInputTensor`, `CompileInfo`, or another access path by name without a version-matched contract that excludes it.
 - Verify shape inference, empty tensors, scalar tensors, broadcast rules, and dynamic shapes.
 - Confirm workspace and temporary-buffer sizes are calculated with the same layout the Kernel uses.
@@ -38,6 +43,20 @@ Apply only the sections relevant to the changed code. Project policy and version
 - Treat `thread_local` in a dynamically loaded library as a lifecycle finding only when the library can unload while owning threads, objects, destructors, or later accesses remain live.
 - Verify error codes and logging preserve the actionable failure boundary without exposing sensitive data.
 - Separate compile support, simulator support, and real-device behavior.
+
+## Invocation Paths
+
+- For registered custom operators, follow registration through inference, Tiling, Kernel build, package metadata, installation lookup, ACLNN exposure, and the framework call site. Verify package search order and operator identity rather than assuming a successful build means the runtime loaded that artifact.
+- For ACLNN two-stage APIs, check that workspace-size/executor preparation validates inputs and produces the exact executor consumed by execution. Verify workspace size/type, allocation ownership, stream/device context, tensor lifetime, error propagation, and cleanup on every exit.
+- For direct Kernel launch, match the launcher declaration to the compiled Kernel name and ABI. Check tiling and workspace buffers, argument order and address space, launch dimensions, asynchronous lifetime, stream synchronization, and error retrieval.
+- When migrating between registered and direct invocation, list which guarantees move to the caller: shape/type inference, validation, Tiling, workspace, binary discovery, lifecycle, and error reporting. Do not leave both paths active accidentally.
+
+## Architecture Migration
+
+- Treat a `220x` to `351x` or other architecture change as a build, API, binary, and runtime migration, not a macro rename. Verify the target names against the selected toolchain instead of assuming those labels exist in every release.
+- Audit target flags, generated code directories, architecture macros, headers, Kernel source selection, supported APIs/data types, queue or allocator model, synchronization, workspace, and package metadata.
+- Remove stale source or binary fallbacks only after proving the new target path is selected. Reject a package that builds one architecture while advertising or loading another.
+- Require target-toolchain compilation and real target evidence for runtime claims. Host tests or a simulator can validate logic but cannot establish device compatibility or performance.
 
 ## Performance Claims
 

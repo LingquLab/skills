@@ -6,6 +6,13 @@
 > `TransDataTo5HD` 或 `Gather` 的通用契约。先核对目标 CANN、SoC、
 > 数据类型和重载，再复用布局或参数。
 
+## 目录
+
+- [1. 核心计算链路](#1-核心计算链路)
+- [2. API 约束校准](#2-api-约束校准)
+- [3. 反例与反模式](#3-反例与反模式)
+- [Calibration Evidence](#calibration-evidence)
+
 ***
 
 ## 1. 核心计算链路

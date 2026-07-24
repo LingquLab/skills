@@ -106,6 +106,89 @@ class EnvironmentScriptsTest(unittest.TestCase):
         self.assertIn("is not recognizable as a CANN toolkit root", completed.stdout)
         self.assertNotIn("25.5.0", completed.stdout)
 
+    def test_check_env_summary_counts_component_inspector_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            toolkit = pathlib.Path(temporary) / "toolkit"
+            (toolkit / "compiler").mkdir(parents=True)
+            (toolkit / "runtime").mkdir()
+            (toolkit / "opp").mkdir()
+            (toolkit / "share/info/broken").mkdir(parents=True)
+            (toolkit / "share/info/broken/version.info").write_text(
+                "required_package_runtime_version=9.1\n", encoding="utf-8"
+            )
+            (toolkit / "compiler/version.info").write_text(
+                "Version=9.1.0\n", encoding="utf-8"
+            )
+            env = clean_env()
+            env["ASCEND_ENV_CHECK_ROOTS"] = str(toolkit)
+            env["HOME"] = temporary
+            completed = subprocess.run(
+                ["bash", str(ENV_SKILL / "scripts/check_env.sh")],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        warning_count = completed.stdout.count("[warn]")
+        summary = next(
+            line for line in completed.stdout.splitlines() if line.startswith("summary:")
+        )
+        self.assertIn(f"warnings={warning_count}", summary)
+        self.assertIn("component_version_missing", completed.stdout)
+
+    def test_check_env_does_not_report_a_resolved_version_when_metadata_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            toolkit = pathlib.Path(temporary) / "toolkit"
+            (toolkit / "compiler").mkdir(parents=True)
+            (toolkit / "runtime").mkdir()
+            (toolkit / "opp").mkdir()
+            (toolkit / "compiler/version.info").write_text("Version=9.1.0\n", encoding="utf-8")
+            (toolkit / "version.info").write_text("Version=8.0.RC3\n", encoding="utf-8")
+            env = clean_env()
+            env["ASCEND_ENV_CHECK_ROOTS"] = str(toolkit)
+            env["HOME"] = temporary
+
+            completed = subprocess.run(
+                ["bash", str(ENV_SKILL / "scripts/check_env.sh")],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("toolkit release: <unknown> (conflict)", completed.stdout)
+        self.assertNotIn("[ok] CANN version=9.1.0", completed.stdout)
+        self.assertIn("CANN version metadata is not resolved", completed.stdout)
+
+    def test_check_env_does_not_report_invalid_plain_version_cfg_as_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            toolkit = pathlib.Path(temporary) / "toolkit"
+            (toolkit / "compiler").mkdir(parents=True)
+            (toolkit / "runtime").mkdir()
+            (toolkit / "opp").mkdir()
+            (toolkit / "version.cfg").write_text(
+                "[package]\nInstall_Path=/opt/cann\n", encoding="utf-8"
+            )
+            env = clean_env()
+            env["ASCEND_ENV_CHECK_ROOTS"] = str(toolkit)
+            env["HOME"] = temporary
+
+            completed = subprocess.run(
+                ["bash", str(ENV_SKILL / "scripts/check_env.sh")],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("toolkit release: <unknown> (unknown)", completed.stdout)
+        self.assertNotIn("[ok] CANN version=[package]", completed.stdout)
+        self.assertIn("CANN version metadata is not resolved", completed.stdout)
+
     def test_npu_info_preserves_bounded_raw_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             bindir = pathlib.Path(temporary)
@@ -196,12 +279,15 @@ class EnvironmentScriptsTest(unittest.TestCase):
 
 
 class PackageInspectorTest(unittest.TestCase):
-    def run_inspector(self, *args: str) -> subprocess.CompletedProcess[str]:
+    def run_inspector(
+        self, *args: str, timeout: float | None = None
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["python3", str(SETUP_SKILL / "scripts/inspect_packages.py"), *args],
             text=True,
             capture_output=True,
             check=False,
+            timeout=timeout,
         )
 
     def test_rejects_ambiguous_same_role_candidates(self) -> None:
@@ -229,6 +315,132 @@ class PackageInspectorTest(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(payload["role_counts"], {"kernels": 1})
+
+    def test_recognizes_supported_component_hints(self) -> None:
+        expected = {
+            "Ascend-cann-toolkit_9.1.0_linux-aarch64.run": "toolkit",
+            "Ascend-cann-910b-ops_9.1.0_linux-aarch64.run": "ops",
+            "Ascend-cann-kernels-910b_9.1.0_linux-aarch64.run": "kernels",
+            "Ascend-cann-runtime_9.1.0_linux-aarch64.run": "runtime",
+            "Ascend-cann-compiler_9.1.0_linux-aarch64.run": "compiler",
+            "Ascend-cann-nnal_9.1.0_linux-aarch64.run": "nnal",
+            "Ascend-cann-asc-devkit_9.1.0_linux-aarch64.run": "asc-devkit",
+            "Ascend-cann-asc-tools_9.1.0_linux-aarch64.run": "asc-tools",
+            "Ascend-cann-ops-nn_9.1.0_linux-aarch64.run": "ops-nn",
+            "Ascend-cann-ops-transformer_9.1.0_linux-aarch64.run": "ops-transformer",
+            "Ascend-cann-ops-tensor_9.1.0_linux-aarch64.run": "ops-tensor",
+            "Ascend-cann-toolkit-simulator_9.1.0_linux-aarch64.run": "simulator",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary)
+            for filename in expected:
+                (directory / filename).write_bytes(b"package")
+            completed = self.run_inspector("--directory", str(directory))
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            {item["filename"]: item["component_hint"] for item in payload["packages"]},
+            expected,
+        )
+
+    def test_recognizes_ops_components_without_implicit_role_ambiguity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary)
+            (directory / "Ascend-cann-ops-nn_9.1.0_linux-aarch64.run").write_bytes(b"nn")
+            (directory / "Ascend-cann-ops-transformer_9.1.0_linux-aarch64.run").write_bytes(
+                b"transformer"
+            )
+            completed = self.run_inspector("--directory", str(directory))
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["role_counts"], {"ops": 2})
+        self.assertEqual(
+            payload["component_counts"], {"ops-nn": 1, "ops-transformer": 1}
+        )
+        self.assertEqual(payload["ambiguous_roles"], [])
+        self.assertEqual(
+            [item["component_hint"] for item in payload["packages"]],
+            ["ops-nn", "ops-transformer"],
+        )
+
+    def test_rejects_missing_explicitly_required_component(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = pathlib.Path(temporary) / "Ascend-cann-ops-nn_9.1.0_linux-aarch64.run"
+            package.write_bytes(b"nn")
+            completed = self.run_inspector(
+                str(package), "--require-component", "ops-transformer"
+            )
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["missing_components"], ["ops-transformer"])
+        self.assertEqual(payload["ambiguous_components"], [])
+
+    def test_rejects_ambiguous_explicitly_required_component(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary)
+            (directory / "Ascend-cann-ops-nn_9.1.0_linux-aarch64.run").write_bytes(b"one")
+            (directory / "Ascend-cann-ops-nn-debug_9.1.0_linux-aarch64.run").write_bytes(b"two")
+            completed = self.run_inspector(
+                "--directory", str(directory), "--require-component", "ops-nn"
+            )
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["ambiguous_components"], ["ops-nn"])
+        self.assertEqual(payload["ambiguous_roles"], [])
+
+    def test_does_not_guess_combined_or_unknown_components(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary)
+            (directory / "Ascend-cann-toolkit-ops_9.1.0_linux-aarch64.run").write_bytes(
+                b"combined"
+            )
+            (directory / "Ascend-cann-community_9.1.0_linux-aarch64.run").write_bytes(
+                b"unknown"
+            )
+            completed = self.run_inspector("--directory", str(directory))
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["component_counts"], {"unknown": 2})
+        self.assertEqual(payload["role_counts"], {"unknown": 2})
+        self.assertTrue(
+            all(item["component_hint"] == "unknown" for item in payload["packages"])
+        )
+
+    def test_rejects_package_symlink_outside_scanned_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = pathlib.Path(temporary)
+            directory = base / "packages"
+            directory.mkdir()
+            outside = base / "Ascend-cann-toolkit_9.1.0_linux-aarch64.run"
+            outside.write_bytes(b"outside")
+            link = directory / outside.name
+            link.symlink_to(outside)
+
+            completed = self.run_inspector("--directory", str(directory), "--sha256")
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["packages"], [])
+        self.assertTrue(any("symbolic links" in error for error in payload["errors"]))
+
+    def test_rejects_fifo_package_candidate_without_blocking(self) -> None:
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("mkfifo is unavailable on this platform")
+        with tempfile.TemporaryDirectory() as temporary:
+            fifo = pathlib.Path(temporary) / "Ascend-cann-toolkit_9.1.0_linux-aarch64.run"
+            os.mkfifo(fifo)
+
+            completed = self.run_inspector(str(fifo), timeout=2)
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["packages"], [])
+        self.assertTrue(any("not a regular file" in error for error in payload["errors"]))
 
     def test_rejects_version_substring_collision(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

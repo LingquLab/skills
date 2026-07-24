@@ -28,7 +28,7 @@ An unset `ASCEND_OPP_PATH` does not prove that an ops package is absent. Check w
 ## No NPU Status Output
 
 1. Run `npu-smi --help` if `npu-smi` exists, because supported subcommands vary by driver release.
-2. Run `bash scripts/npu_info.sh` and preserve its stderr and exit status.
+2. Run `bash '<skill-dir>/scripts/npu_info.sh'` and preserve its stderr and exit status.
 3. If it falls back to `asys`, record the exact executable and raw health output.
 4. Treat a missing tool, a command failure, an empty result, and an unhealthy device as different boundaries.
 
