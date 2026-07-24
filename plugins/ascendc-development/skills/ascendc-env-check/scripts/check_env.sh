@@ -204,8 +204,8 @@ if [[ -n "$toolkit_root" ]]; then
     fi
 fi
 
-if [[ "$state_release_status" == 'conflict' ]]; then
-    warn "CANN version metadata conflicts below the selected toolkit root: $toolkit_root"
+if [[ -n "$state_release_status" && "$state_release_status" != 'resolved' ]]; then
+    warn "CANN version metadata is not resolved below the selected toolkit root: $toolkit_root (status: $state_release_status)"
     version=''
     runtime_requirement=''
 elif [[ -n "$version" ]]; then

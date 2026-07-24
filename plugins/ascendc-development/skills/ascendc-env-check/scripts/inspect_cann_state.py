@@ -136,7 +136,7 @@ def read_bounded_text(
     byte_limit: int,
     diagnostics: list[dict[str, Any]],
 ) -> str | None:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
         descriptor = os.open(path, flags)
     except OSError as error:
@@ -691,6 +691,10 @@ def parse_npu_capture(
     except json.JSONDecodeError:
         json_parsed = False
         payload = None
+    except (MemoryError, RecursionError) as error:
+        raise InspectionInputError(
+            "NPU capture exceeds JSON parser resource limits", code="invalid_npu_capture"
+        ) from error
     if json_parsed:
         capture_format = "json"
         if isinstance(payload, dict):
@@ -988,34 +992,57 @@ def inspect(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def display_text(value: Any) -> str:
+    escaped: list[str] = []
+    for character in str(value):
+        if character == "\n":
+            escaped.append(r"\n")
+        elif character == "\r":
+            escaped.append(r"\r")
+        elif character == "\t":
+            escaped.append(r"\t")
+        elif character.isprintable():
+            escaped.append(character)
+        elif ord(character) <= 0xFF:
+            escaped.append(f"\\x{ord(character):02x}")
+        else:
+            escaped.append(f"\\u{ord(character):04x}")
+    return "".join(escaped)
+
+
 def print_text(result: dict[str, Any]) -> None:
     toolkit = result["toolkit"]
     print("CANN state inspection")
     print("---------------------")
-    print(f"toolkit root: {toolkit['resolved_root']}")
+    print(f"toolkit root: {display_text(toolkit['resolved_root'])}")
     print(
         "toolkit release: "
-        f"{toolkit['resolved_release'] or '<unknown>'} ({toolkit['release_status']})"
+        f"{display_text(toolkit['resolved_release'] or '<unknown>')} "
+        f"({display_text(toolkit['release_status'])})"
     )
     print(f"components: {len(result['components'])}")
     for component in result["components"]:
         print(
-            f"  {component['component_id']}: {component['version'] or '<unknown>'} "
-            f"[version-text={component['version_text_relation']}] "
-            f"(source: {component['metadata_path']})"
+            f"  {display_text(component['component_id'])}: "
+            f"{display_text(component['version'] or '<unknown>')} "
+            f"[version-text={display_text(component['version_text_relation'])}] "
+            f"(source: {display_text(component['metadata_path'])})"
         )
     print(
-        f"driver: {result['driver']['resolved_version'] or '<unknown>'} "
-        f"({result['driver']['status']})"
+        f"driver: {display_text(result['driver']['resolved_version'] or '<unknown>')} "
+        f"({display_text(result['driver']['status'])})"
     )
     print(
-        f"SoC: {result['soc']['selected_for_resolution'] or '<unknown>'}; "
-        f"NpuArch: {result['npu_arch']['value'] or '<unknown>'} "
-        f"({result['npu_arch']['state']}, {result['npu_arch']['match_status']})"
+        f"SoC: {display_text(result['soc']['selected_for_resolution'] or '<unknown>')}; "
+        f"NpuArch: {display_text(result['npu_arch']['value'] or '<unknown>')} "
+        f"({display_text(result['npu_arch']['state'])}, "
+        f"{display_text(result['npu_arch']['match_status'])})"
     )
     for item in result["diagnostics"]:
-        location = f" ({item['path']})" if "path" in item else ""
-        print(f"[warn] {item['code']}: {item['message']}{location}")
+        location = f" ({display_text(item['path'])})" if "path" in item else ""
+        print(
+            f"[warn] {display_text(item['code'])}: {display_text(item['message'])}{location}"
+        )
     print(f"note: {result['note']}")
 
 
@@ -1036,7 +1063,7 @@ def main() -> int:
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         else:
-            print(f"error: {error}", file=sys.stderr)
+            print(f"error: {display_text(error)}", file=sys.stderr)
         return 2
 
     if args.json:
